@@ -1,0 +1,16 @@
+# Services definition for building & deploying
+
+name: python-devbox
+
+services:
+
+  devbox:
+    # Build
+    image: ${IMAGES_PREFIX:-python-devbox}:${IMAGES_TAG:-latest}
+    build:
+      context: ./python-devbox
+      dockerfile: ./Dockerfile
+      target: python_devbox
+    # Deploy
+    tmpfs:
+      - /tmp:mode=1777,exec,uid=${DOCKER_UID:-${UID:-1000}},gid=0
