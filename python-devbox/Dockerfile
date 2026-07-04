@@ -68,9 +68,6 @@ FROM python_base AS python_devbox_poetry
 
 # Build arguments
 ARG POETRY_VERSION
-ARG USER
-ARG UID
-ARG GID
 
 # Install Poetry (Python dependency manager)
 RUN export POETRY_HOME='/usr/local' && \
@@ -85,9 +82,6 @@ FROM python_base AS python_devbox_uv
 
 # Build arguments
 ARG UV_VERSION
-ARG USER
-ARG UID
-ARG GID
 
 # Install uv (Python package manager)
 RUN export UV_NO_MODIFY_PATH='1' && \
@@ -103,9 +97,6 @@ FROM python_base AS python_devbox_full
 # Build arguments
 ARG POETRY_VERSION
 ARG UV_VERSION
-ARG USER
-ARG UID
-ARG GID
 
 # Install Poetry (Python dependency manager)
 RUN export POETRY_HOME='/usr/local' && \
@@ -127,8 +118,14 @@ RUN export UV_NO_MODIFY_PATH='1' && \
 
 FROM python_devbox_${BUILD_VARIANT} AS python_devbox
 
+# Build arguments
+ARG USER
+ARG UID
+ARG GID
+
 # Create non-root user
-RUN useradd -lm -u ${UID} -U ${USER}
+RUN groupadd -g ${GID} ${USER} && \
+    useradd -lm -u ${UID} -g ${GID} ${USER}
 
 # Run as created non-root user
 USER ${USER}
