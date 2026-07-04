@@ -78,19 +78,12 @@ curl -sSL https://install.python-poetry.org -o "${POETRY_INSTALLER_FILE}"
 python3 "${POETRY_INSTALLER_FILE}"
 if [ $? -ne 0 ]; then
     export POETRY_VERSION="$(
-        pip index versions poetry 2>/dev/null |
-        awk -v prefix="${POETRY_VERSION}" '
-            /^Available versions:/ {
-                sub(/^Available versions: /, "")
-                gsub(/, /, "\n")
-                for (i = 1; i <= NF; i++) {
-                    if ($i ~ ("^" prefix "\\.[0-9]+$")) {
-                        print $i
-                        exit
-                    }
-                }
-            }
-        '
+        pip index versions poetry 2>/dev/null \
+        | sed -n 's/^Available versions: //p' \
+        | tr ',' '\n' \
+        | sed 's/^ *//' \
+        | grep -E "^$(echo "${POETRY_VERSION}" | sed 's/\.*$//; s/\./\\./g')(\\.[0-9]+)*$" \
+        | head -n1
     )"
     python3 "${POETRY_INSTALLER_FILE}"
 fi
@@ -114,19 +107,12 @@ UV_INSTALLER_FILE="$(mktemp)"
 curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" -o "${UV_INSTALLER_FILE}"
 if [ $? -ne 0 ]; then
     UV_VERSION="$(
-        pip index versions uv 2>/dev/null |
-        awk -v prefix="${UV_VERSION}" '
-            /^Available versions:/ {
-                sub(/^Available versions: /, "")
-                gsub(/, /, "\n")
-                for (i = 1; i <= NF; i++) {
-                    if ($i ~ ("^" prefix "\\.[0-9]+$")) {
-                        print $i
-                        exit
-                    }
-                }
-            }
-        '
+        pip index versions uv 2>/dev/null \
+        | sed -n 's/^Available versions: //p' \
+        | tr ',' '\n' \
+        | sed 's/^ *//' \
+        | grep -E "^$(echo "${UV_VERSION}" | sed 's/\.*$//; s/\./\\./g')(\\.[0-9]+)*$" \
+        | head -n1
     )"
     curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" -o "${UV_INSTALLER_FILE}"
 fi
@@ -153,19 +139,12 @@ curl -sSL https://install.python-poetry.org -o "${POETRY_INSTALLER_FILE}"
 python3 "${POETRY_INSTALLER_FILE}"
 if [ $? -ne 0 ]; then
     export POETRY_VERSION="$(
-        pip index versions poetry 2>/dev/null |
-        awk -v prefix="${POETRY_VERSION}" '
-            /^Available versions:/ {
-                sub(/^Available versions: /, "")
-                gsub(/, /, "\n")
-                for (i = 1; i <= NF; i++) {
-                    if ($i ~ ("^" prefix "\\.[0-9]+$")) {
-                        print $i
-                        exit
-                    }
-                }
-            }
-        '
+        pip index versions poetry 2>/dev/null \
+        | sed -n 's/^Available versions: //p' \
+        | tr ',' '\n' \
+        | sed 's/^ *//' \
+        | grep -E "^$(echo "${POETRY_VERSION}" | sed 's/\.*$//; s/\./\\./g')(\\.[0-9]+)*$" \
+        | head -n1
     )"
     python3 "${POETRY_INSTALLER_FILE}"
 fi
@@ -180,19 +159,12 @@ UV_INSTALLER_FILE="$(mktemp)"
 curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" -o "${UV_INSTALLER_FILE}"
 if [ $? -ne 0 ]; then
     UV_VERSION="$(
-        pip index versions uv 2>/dev/null |
-        awk -v prefix="${UV_VERSION}" '
-            /^Available versions:/ {
-                sub(/^Available versions: /, "")
-                gsub(/, /, "\n")
-                for (i = 1; i <= NF; i++) {
-                    if ($i ~ ("^" prefix "\\.[0-9]+$")) {
-                        print $i
-                        exit
-                    }
-                }
-            }
-        '
+        pip index versions uv 2>/dev/null \
+        | sed -n 's/^Available versions: //p' \
+        | tr ',' '\n' \
+        | sed 's/^ *//' \
+        | grep -E "^$(echo "${UV_VERSION}" | sed 's/\.*$//; s/\./\\./g')(\\.[0-9]+)*$" \
+        | head -n1
     )"
     curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" -o "${UV_INSTALLER_FILE}"
 fi
