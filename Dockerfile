@@ -26,13 +26,13 @@ FROM python:${PYTHON_VERSION} AS python_upstream
 
 
 # ----------------
-# Base stages
+# Python Devbox variants
 # ----------------
 
 # --
-# Python base stage
+# Python Devbox base
 
-FROM python_upstream AS python_base
+FROM python_upstream AS python_devbox_base
 
 # Install system development tools and dependencies
 # (hadolint: Ignore non-pinned apt package version)
@@ -52,20 +52,10 @@ RUN --mount=type=cache,sharing=locked,id=apt-cache,target=/var/cache/apt \
 RUN pip install --no-cache-dir ruff pytest
 
 
-# ----------------
-# Python Devbox variants
-# ----------------
-
-# --
-# Python Devbox base
-
-FROM python_base AS python_devbox_base
-
-
 # --
 # Python Devbox with Poetry
 
-FROM python_base AS python_devbox_poetry
+FROM python_devbox_base AS python_devbox_poetry
 
 # Build arguments
 ARG POETRY_VERSION
@@ -95,7 +85,7 @@ EOF
 # --
 # Python Devbox with uv
 
-FROM python_base AS python_devbox_uv
+FROM python_devbox_base AS python_devbox_uv
 
 # Build arguments
 ARG UV_VERSION
@@ -125,7 +115,7 @@ EOF
 # --
 # Python Devbox with uv and Poetry
 
-FROM python_base AS python_devbox_full
+FROM python_devbox_base AS python_devbox_full
 
 # Build arguments
 ARG POETRY_VERSION
