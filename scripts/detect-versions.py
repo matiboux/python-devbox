@@ -235,13 +235,42 @@ class DetectVersions:
 
         build_matrix = []
         for python_version in self.python_versions:
+            build_matrix.append({
+                'image_tag': f"{python_version}",
+                'python_version': python_version,
+                'python_image_tag': f"{python_version}",
+            })
+            build_matrix.append({
+                'image_tag': f"{python_version}-slim",
+                'python_version': python_version,
+                'python_image_tag': f"{python_version}-slim",
+            })
             for poetry_version in self.poetry_versions:
-                for uv_version in self.uv_versions:
-                    build_matrix.append({
-                        'python_version': python_version,
-                        'poetry_version': poetry_version,
-                        'uv_version': uv_version,
-                    })
+                build_matrix.append({
+                    'image_tag': f"{python_version}-poetry{poetry_version}",
+                    'python_version': python_version,
+                    'python_image_tag': f"{python_version}",
+                    'poetry_version': poetry_version,
+                })
+                build_matrix.append({
+                    'image_tag': f"{python_version}-slim-poetry{poetry_version}",
+                    'python_version': python_version,
+                    'python_image_tag': f"{python_version}-slim",
+                    'poetry_version': poetry_version,
+                })
+            for uv_version in self.uv_versions:
+                build_matrix.append({
+                    'image_tag': f"{python_version}-uv{uv_version}",
+                    'python_version': python_version,
+                    'python_image_tag': f"{python_version}",
+                    'uv_version': uv_version,
+                })
+                build_matrix.append({
+                    'image_tag': f"{python_version}-slim-uv{uv_version}",
+                    'python_version': python_version,
+                    'python_image_tag': f"{python_version}-slim",
+                    'uv_version': uv_version,
+                })
 
         print(f"Generated {len(build_matrix)} build matrix entries.")
         self.build_matrix = build_matrix
