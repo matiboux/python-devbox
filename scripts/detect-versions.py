@@ -25,6 +25,7 @@ class DetectVersions:
         self.python_versions: List[str] = []
         self.poetry_versions: List[str] = []
         self.uv_versions: List[str] = []
+        self.published_versions: Dict[str, List[str]] = {}
         self.build_matrix: List[Dict[str, str]] = []
 
     def _load_yaml(self, path: str) -> dict:
@@ -229,48 +230,117 @@ class DetectVersions:
         self.uv_versions = detected_versions
         return detected_versions
 
-    def generate_build_matrix(self) -> List[dict[str, str]]:
+    def _fetch_published_tags(self) -> List[str]:
+        """Fetch published tags from Docker Hub."""
+
+        published_tags: List[str] = []
+
+        min_python_version = self.constraints['python']['min_version']
+        min_poetry_version = self.constraints['poetry']['min_version']
+        min_uv_version = self.constraints['uv']['min_version']
+        min_python_version_tuple = self._get_version_tuple(min_python_version)
+        min_poetry_version_tuple = self._get_version_tuple(min_poetry_version)
+        min_uv_version_tuple = self._get_version_tuple(min_uv_version)
+
+        url = 'https://hub.docker.com/v2/namespaces/matiboux/repositories/python-devbox/tags?page_size=100'
+        while True:
+            data = self._fetch_json(url)
+            if not data:
+                print(
+                    'Warning: Could not fetch published tags from Docker Hub',
+                    file=sys.stderr,
+                )
+            if 'results' not in data:
+                break
+            found_version = False
+            for tag in data['results']:
+                try:
+                    tag_name = tag.get('name', '')
+                    if not tag_name or 'slim' in tag_name:
+                        continue
+                    tag_match = re.match(r'^(?P<python>\d+\.\d+\.\d+)(?:-poetry(?P<poetry>\d+\.\d+\.\d+))?(?:-uv(?P<uv>\d+\.\d+\.\d+))?$', tag_name)
+                    if not tag_match:
+                        continue
+                    python_version = tag_match.group('python')
+                    poetry_version = tag_match.group('poetry')
+                    uv_version = tag_match.group('uv')
+                    if python_version:
+                        python_version_tuple = self._get_version_tuple(python_version)
+                        if python_version_tuple < min_python_version_tuple:
+                            continue
+                    if poetry_version:
+                        poetry_version_tuple = self._get_version_tuple(poetry_version)
+                        if poetry_version_tuple < min_poetry_version_tuple:
+                            continue
+                    if uv_version:
+                        uv_version_tuple = self._get_version_tuple(uv_version)
+                        if uv_version_tuple < min_uv_version_tuple:
+                            continue
+                    found_version = True
+                    published_tags.append(tag_name)
+                except (ValueError, IndexError):
+                    pass
+            if not found_version:
+                break
+            if 'next' in data and data['next']:
+                url = data['next']
+
+        return published_tags
+
+    def generate_build_matrix(
+        self,
+        skip_published_tags: bool = True,
+    ) -> List[dict[str, str]]:
         """Generate GitHub Actions matrix from detected versions."""
         print('Generating build matrix...')
 
+        if skip_published_tags:
+            published_tags = set(self._fetch_published_tags())
+            print(f"Detected {len(published_tags)} published tags.")
+        else:
+            published_tags = set()
+
         build_matrix = []
         for python_version in self.python_versions:
-            build_matrix.append({
-                'image_tag': f"{python_version}",
-                'python_version': python_version,
-                'python_image_tag': f"{python_version}",
-            })
-            build_matrix.append({
-                'image_tag': f"{python_version}-slim",
-                'python_version': python_version,
-                'python_image_tag': f"{python_version}-slim",
-            })
+            if f"{python_version}" not in published_tags:
+                build_matrix.append({
+                    'image_tag': f"{python_version}",
+                    'python_version': python_version,
+                    'python_image_tag': f"{python_version}",
+                })
+                build_matrix.append({
+                    'image_tag': f"{python_version}-slim",
+                    'python_version': python_version,
+                    'python_image_tag': f"{python_version}-slim",
+                })
             for poetry_version in self.poetry_versions:
-                build_matrix.append({
-                    'image_tag': f"{python_version}-poetry{poetry_version}",
-                    'python_version': python_version,
-                    'python_image_tag': f"{python_version}",
-                    'poetry_version': poetry_version,
-                })
-                build_matrix.append({
-                    'image_tag': f"{python_version}-slim-poetry{poetry_version}",
-                    'python_version': python_version,
-                    'python_image_tag': f"{python_version}-slim",
-                    'poetry_version': poetry_version,
-                })
+                if f"{python_version}-poetry{poetry_version}" not in published_tags:
+                    build_matrix.append({
+                        'image_tag': f"{python_version}-poetry{poetry_version}",
+                        'python_version': python_version,
+                        'python_image_tag': f"{python_version}",
+                        'poetry_version': poetry_version,
+                    })
+                    build_matrix.append({
+                        'image_tag': f"{python_version}-slim-poetry{poetry_version}",
+                        'python_version': python_version,
+                        'python_image_tag': f"{python_version}-slim",
+                        'poetry_version': poetry_version,
+                    })
             for uv_version in self.uv_versions:
-                build_matrix.append({
-                    'image_tag': f"{python_version}-uv{uv_version}",
-                    'python_version': python_version,
-                    'python_image_tag': f"{python_version}",
-                    'uv_version': uv_version,
-                })
-                build_matrix.append({
-                    'image_tag': f"{python_version}-slim-uv{uv_version}",
-                    'python_version': python_version,
-                    'python_image_tag': f"{python_version}-slim",
-                    'uv_version': uv_version,
-                })
+                if f"{python_version}-uv{uv_version}" not in published_tags:
+                    build_matrix.append({
+                        'image_tag': f"{python_version}-uv{uv_version}",
+                        'python_version': python_version,
+                        'python_image_tag': f"{python_version}",
+                        'uv_version': uv_version,
+                    })
+                    build_matrix.append({
+                        'image_tag': f"{python_version}-slim-uv{uv_version}",
+                        'python_version': python_version,
+                        'python_image_tag': f"{python_version}-slim",
+                        'uv_version': uv_version,
+                    })
 
         print(f"Generated {len(build_matrix)} build matrix entries.")
         self.build_matrix = build_matrix
