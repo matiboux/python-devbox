@@ -17,7 +17,7 @@ UV_TAG_LEVEL="${UV_TAG_LEVEL:-patch}" # global, major, minor, patch
 PYTHON_IMAGE_TAG="${PYTHON_IMAGE_TAG:-${PYTHON_VERSION}-${PYTHON_IMAGE_VARIANT}}"
 
 # Arguments:
-[ "$#" -gt 0 ] && ([ "$1" = "--compact" ] || [ "$1" = "-c" ]) && COMPACT_OUTPUT='true'
+[ "$#" -gt 0 ] && ([ "$1" = '--compact' ] || [ "$1" = '-c' ]) && COMPACT_OUTPUT='true'
 
 # ---
 
@@ -26,7 +26,7 @@ validate_tag_level() {
 	local level="$1"
 	case "${level}" in
 		global|major|minor|patch) printf '%s' "${level}" ;;
-		*) printf '%s' "patch" ;;
+		*) printf '%s' 'patch' ;;
 	esac
 }
 PYTHON_TAG_LEVEL="$(validate_tag_level "${PYTHON_TAG_LEVEL}")"
@@ -120,7 +120,7 @@ for python_component in "${python_component_options[@]}"; do
 	  [ -n "${uv_component}" ] && tag_pieces+=("${uv_component}")
 
 	  if [ "${#tag_pieces[@]}" -eq 0 ]; then
-		image_tag="latest"
+		image_tag='latest'
 	  else
 		image_tag="$(IFS='-'; echo "${tag_pieces[*]}")"
 	  fi
@@ -130,10 +130,10 @@ for python_component in "${python_component_options[@]}"; do
   done
 done
 
-if [ "$COMPACT_OUTPUT" = "true" ]; then
+if [ "$COMPACT_OUTPUT" = 'true' ]; then
 	(IFS=','; echo "${IMAGE_TAGS[*]}")
 else
-	for tag in "${IMAGE_TAGS[@]}"; do
-		echo "$tag"
+	for image_tag in "${IMAGE_TAGS[@]}"; do
+		echo "${image_tag}"
 	done
 fi
