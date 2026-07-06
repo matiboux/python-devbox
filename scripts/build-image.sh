@@ -3,10 +3,16 @@ set -euo pipefail
 
 # Build Docker image with specified tags and versions
 
+# Inputs:
 PYTHON_VERSION="${PYTHON_VERSION:-3.14.6}"
-PYTHON_VARIANT="${PYTHON_VARIANT:-slim}"
+PYTHON_IMAGE_VARIANT="${PYTHON_IMAGE_VARIANT:-}"
 POETRY_VERSION="${POETRY_VERSION:-}"
 UV_VERSION="${UV_VERSION:-}"
+
+# Secondary inputs (derived):
+PYTHON_IMAGE_TAG="${PYTHON_IMAGE_TAG:-${PYTHON_VERSION}-${PYTHON_IMAGE_VARIANT}}"
+
+# ---
 
 REGISTRY_NAMESPACE="${REGISTRY_NAMESPACE:-matiboux}"
 REGISTRY_REPOSITORY="${REGISTRY_REPOSITORY:-python-devbox}"
@@ -17,8 +23,6 @@ if [ ! -f "${DOCKERFILE}" ]; then
     echo "Error: Dockerfile not found: ${DOCKERFILE}"
     exit 1
 fi
-
-PYTHON_IMAGE_TAG="${PYTHON_VERSION}-${PYTHON_VARIANT}"
 
 BUILD_VARIANT='base'
 if [ -n "${POETRY_VERSION}" ] && [ -n "${UV_VERSION}" ]; then
