@@ -125,6 +125,11 @@ jobs:
     needs:
       - prepare
 
+    # Set GITHUB_TOKEN permissions for the job
+    permissions:
+      contents: read
+      packages: write
+
     uses: ./.github/workflows/build-push.yml
     with:
       python_version: ${{ matrix.python_version }}
