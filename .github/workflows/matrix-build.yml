@@ -47,7 +47,7 @@ jobs:
       PUSH_PLATFORMS: ${{ vars.PUSH_PLATFORMS }}
 
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
+      matrix: ${{ steps.outputs.outputs.matrix }}
 
     steps:
 
@@ -78,8 +78,6 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
 
-      # Preparation steps
-
       # Execution steps
 
       - name: Install deps
@@ -91,13 +89,12 @@ jobs:
           uv run python ./scripts/detect-versions.py
 
       - name: Build matrix from detected versions
-        id: matrix
         run: |
           # Build job matrix from detected versions
           set -euo pipefail
 
           # Load helper scripts
-          . ./.github/workflows/scripts/set_github_output.sh
+          . ./.github/workflows/scripts/set_github_env.sh
 
           # Transform list of build matrix entries
           # to job matrix configuration in JSON format.
@@ -106,6 +103,21 @@ jobs:
             yq -o=json e '.build_matrix' dist/versions.yml \
             | jq -c '{ include: .[0:2] }'
           )"
+
+          set_github_env 'MATRIX_JSON' "${MATRIX_JSON}" non-optional non-secret verbose
+
+      - name: Set job outputs
+        id: outputs
+        env:
+          BUILD_VARIANT: ${{ env.BUILD_VARIANT }}
+          PYTHON_IMAGE_TAG: ${{ env.PYTHON_IMAGE_TAG }}
+          IMAGE_REFS: ${{ env.IMAGE_REFS }}
+          MATRIX_JSON: ${{ env.MATRIX_JSON }}
+        run: |
+          # Set job output variables
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_output.sh
 
           set_github_output 'matrix' "${MATRIX_JSON}" non-optional verbose
 
