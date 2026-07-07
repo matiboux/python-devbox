@@ -111,7 +111,7 @@ permissions:
 
 # Set workflow concurrency rules
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.image_tag || 'default' }}
+  group: ${{ github.workflow }}-${{ inputs.python_version }}-${{ inputs.python_image_variant }}-${{ inputs.poetry_version }}-${{ inputs.uv_version }}
   cancel-in-progress: true
 
 # Set environment variables for the workflow
