@@ -130,11 +130,8 @@ jobs:
 
     # Run if push to some registry is enabled
     if: |
-      # Run if Docker Hub registry is enabled
       vars.DHCR_ENABLED == 'true' ||
-      # Run if GitHub registry is enabled
       vars.GHCR_ENABLED == 'true' ||
-      # Run if custom registry is enabled
       vars.CUSTOM_CR_ENABLED == 'true'
 
     # Set environment variables for the job
