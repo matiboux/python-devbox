@@ -636,7 +636,7 @@ jobs:
           file: ${{ env.SERVICE_DIR }}/Dockerfile
           context: ${{ env.SERVICE_DIR }}
           build-contexts: ${{ env.BUILD_CONTEXTS }}
-          target: app_prod
+          target: python_devbox
           build-args: |
             BUILD_VARIANT=${{ env.BUILD_VARIANT }}
             PYTHON_VERSION=${{ env.PYTHON_VERSION }}
