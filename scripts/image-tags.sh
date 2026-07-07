@@ -13,9 +13,6 @@ PYTHON_TAG_LEVEL="${PYTHON_TAG_LEVEL:-patch}" # global, major, minor, patch
 POETRY_TAG_LEVEL="${POETRY_TAG_LEVEL:-patch}" # global, major, minor, patch
 UV_TAG_LEVEL="${UV_TAG_LEVEL:-patch}" # global, major, minor, patch
 
-# Secondary inputs (derived):
-PYTHON_IMAGE_TAG="${PYTHON_IMAGE_TAG:-${PYTHON_VERSION}-${PYTHON_IMAGE_VARIANT}}"
-
 # Arguments:
 [ "$#" -gt 0 ] && ([ "$1" = '--compact' ] || [ "$1" = '-c' ]) && COMPACT_OUTPUT='true'
 
