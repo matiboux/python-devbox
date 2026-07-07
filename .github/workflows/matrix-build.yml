@@ -104,7 +104,7 @@ jobs:
           # Limit to 2 entries to avoid overwhelming CI.
           MATRIX_JSON="$(
             yq -o=json e '.build_matrix' dist/versions.yml \
-            | jq -c '{ include: .[0:2] }
+            | jq -c '{ include: .[0:2] }'
           )"
 
           set_github_output 'matrix' "${MATRIX_JSON}" non-optional verbose
