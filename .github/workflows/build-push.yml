@@ -25,9 +25,6 @@ on:
   # Run on workflow calls
   workflow_call:
     inputs:
-      image_tag:
-        description: 'Python Devbox image tag'
-        type: string
       python_version:
         description: 'Python version (e.g. 3.13.14, 3.14)'
         type: string
@@ -71,9 +68,6 @@ on:
   # Run on manual triggers
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: 'Python Devbox image tag'
-        type: string
       python_version:
         description: 'Python version (e.g. 3.13.14, 3.14)'
         type: string
