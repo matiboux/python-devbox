@@ -1,0 +1,908 @@
+name: Build & Push CD
+
+# Expected secrets:
+# - DHCR_TOKEN
+# - CUSTOM_CR_TOKEN
+
+# Expected variables:
+# - DHCR_ENABLED
+# - DHCR_USERNAME
+# - GHCR_ENABLED
+# - CUSTOM_CR_ENABLED
+# - CUSTOM_CR_URL
+# - CUSTOM_CR_USERNAME
+# - CUSTOM_CR_NAMESPACE
+# - IMAGES_PREFIX
+# - PUSH_PLATFORMS
+
+# Helper scripts:
+# - ./.github/workflows/scripts/set_github_env.sh
+# - ./.github/workflows/scripts/set_github_output.sh
+# - ./.github/workflows/scripts/set_registry_credentials.sh
+
+on:
+
+  # Run on workflow calls
+  workflow_call:
+    inputs:
+      image_tag:
+        description: 'Python Devbox image tag'
+        type: string
+      python_version:
+        description: 'Python version (e.g. 3.13.14, 3.14)'
+        type: string
+      python_image_variant:
+        description: 'Python image variant (e.g. [empty], slim, alpine)'
+        type: string
+        required: false
+      poetry_version:
+        description: 'Poetry version (e.g. 1.8.5, 2.4)'
+        type: string
+        required: false
+      uv_version:
+        description: 'uv version (e.g. 0.10.12, 0.11)'
+        type: string
+        required: false
+      python_tag_level:
+        description: 'Python tag level (e.g. global, major, minor, patch)'
+        type: string
+        required: false
+        default: 'patch'
+      poetry_tag_level:
+        description: 'Poetry tag level (e.g. global, major, minor, patch)'
+        type: string
+        required: false
+        default: 'patch'
+      uv_tag_level:
+        description: 'uv tag level (e.g. global, major, minor, patch)'
+        type: string
+        required: false
+        default: 'patch'
+    secrets:
+      DHCR_TOKEN:
+        required: false
+      CUSTOM_CR_TOKEN:
+        required: false
+    outputs:
+      image_refs:
+        description: 'Comma-separated list of pushed Docker image refs'
+        value: ${{ jobs.push-manifest.outputs.image_refs }}
+
+  # Run on manual triggers
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Python Devbox image tag'
+        type: string
+      python_version:
+        description: 'Python version (e.g. 3.13.14, 3.14)'
+        type: string
+      python_image_variant:
+        description: 'Python image variant (e.g. [empty], slim, alpine)'
+        type: string
+        required: false
+      poetry_version:
+        description: 'Poetry version (e.g. 1.8.5, 2.4)'
+        type: string
+        required: false
+      uv_version:
+        description: 'uv version (e.g. 0.10.12, 0.11)'
+        type: string
+        required: false
+      python_tag_level:
+        description: 'Python tag level (e.g. global, major, minor, patch)'
+        type: string
+        required: false
+        default: 'patch'
+      poetry_tag_level:
+        description: 'Poetry tag level (e.g. global, major, minor, patch)'
+        type: string
+        required: false
+        default: 'patch'
+      uv_tag_level:
+        description: 'uv tag level (e.g. global, major, minor, patch)'
+        type: string
+        required: false
+        default: 'patch'
+
+# Set GITHUB_TOKEN permissions for the workflow
+permissions:
+  contents: read
+
+# Set workflow concurrency rules
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.image_tag || 'default' }}
+  cancel-in-progress: true
+
+# Set environment variables for the workflow
+env:
+  DHCR_ENABLED: ${{ vars.DHCR_ENABLED == 'true' }}
+  GHCR_ENABLED: ${{ vars.GHCR_ENABLED == 'true' }}
+  CUSTOM_CR_ENABLED: ${{ vars.CUSTOM_CR_ENABLED == 'true' }}
+  IMAGES_PREFIX: ${{ vars.IMAGES_PREFIX }}
+  IMAGES_SUFFIX: ''
+  SERVICE_DIR: .
+  BUILD_CONTEXTS: ''
+
+jobs:
+
+  # Prepare job
+  prepare:
+    name: Prepare build matrix
+
+    # https://github.com/actions/runner-images/blob/main/images/ubuntu-slim/ubuntu-slim-Readme.md
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+
+    # Run if push to some registry is enabled
+    if: |
+      vars.DHCR_ENABLED == 'true' ||
+      vars.GHCR_ENABLED == 'true' ||
+      vars.CUSTOM_CR_ENABLED == 'true'
+
+    # Set environment variables for the job
+    env:
+      IMAGES_SUFFIX: ''
+      PUSH_PLATFORMS: ${{ vars.PUSH_PLATFORMS }}
+
+    outputs:
+      build_variant: ${{ steps.outputs.outputs.build_variant }}
+      python_image_tag: ${{ steps.outputs.outputs.python_image_tag }}
+      image_tags: ${{ steps.outputs.outputs.image_tags }}
+      matrix: ${{ steps.outputs.outputs.matrix }}
+
+    steps:
+
+      # Initialization steps
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Dependency steps
+
+      - name: Install jq
+        run: |
+          # apt-get install jq
+          sudo apt-get -q update
+          sudo apt-get -qy install --no-install-recommends jq
+
+      # Preparation steps
+
+      - name: Set Docker Hub registry credentials
+        if: env.DHCR_ENABLED == 'true'
+        env:
+          REGISTRY_URL: docker.io
+          REGISTRY_USERNAME: ${{ vars.DHCR_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.DHCR_TOKEN }}
+          REGISTRY_NAMESPACE: ${{ vars.DHCR_USERNAME }}
+          IMAGES_PREFIX: ${{ env.IMAGES_PREFIX }}
+          IMAGES_SUFFIX: ${{ env.IMAGES_SUFFIX }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_PATH: ${{ github.repository }}
+        run: |
+          # Set Docker Hub registry credentials
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+          . ./.github/workflows/scripts/set_registry_credentials.sh
+
+          set_registry_credentials \
+            'DHCR_URL' \
+            'DHCR_IMAGES_NAME' \
+            'DHCR_USERNAME' \
+            'DHCR_TOKEN'
+
+      - name: Set GitHub registry credentials
+        if: env.GHCR_ENABLED == 'true'
+        env:
+          REGISTRY_URL: ghcr.io
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_NAMESPACE: ${{ github.repository_owner }}
+          IMAGES_PREFIX: ${{ env.IMAGES_PREFIX }}
+          IMAGES_SUFFIX: ${{ env.IMAGES_SUFFIX }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_PATH: ${{ github.repository }}
+        run: |
+          # Set GitHub registry credentials
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+          . ./.github/workflows/scripts/set_registry_credentials.sh
+
+          set_registry_credentials \
+            'GHCR_URL' \
+            'GHCR_IMAGES_NAME' \
+            'GHCR_USERNAME' \
+            'GHCR_TOKEN'
+
+      - name: Set custom registry credentials
+        if: env.CUSTOM_CR_ENABLED == 'true'
+        env:
+          REGISTRY_URL: ${{ vars.CUSTOM_CR_URL }}
+          REGISTRY_USERNAME: ${{ vars.CUSTOM_CR_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.CUSTOM_CR_TOKEN }}
+          REGISTRY_NAMESPACE: ${{ vars.CUSTOM_CR_NAMESPACE }}
+          IMAGES_PREFIX: ${{ env.IMAGES_PREFIX }}
+          IMAGES_SUFFIX: ${{ env.IMAGES_SUFFIX }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_PATH: ${{ github.repository }}
+        run: |
+          # Set custom registry credentials
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+          . ./.github/workflows/scripts/set_registry_credentials.sh
+
+          set_registry_credentials \
+            'CUSTOM_CR_URL' \
+            'CUSTOM_CR_IMAGES_NAME' \
+            'CUSTOM_CR_USERNAME' \
+            'CUSTOM_CR_TOKEN'
+
+      # Execution steps
+
+      - name: Validate inputs
+        env:
+          PYTHON_VERSION: ${{ inputs.python_version }}
+          POETRY_VERSION: ${{ inputs.poetry_version }}
+          UV_VERSION: ${{ inputs.uv_version }}
+        run: |
+          # Validate inputs
+
+          if [ -z "${PYTHON_VERSION}" ]; then
+            echo 'Error: Missing required input: python_version' >&2
+            exit 1
+          elif ! echo "${PYTHON_VERSION}" | grep -Eq '^[0-9]+(\.[0-9]+){,2}$'; then
+            echo "Error: Invalid python_version format: ${PYTHON_VERSION}" >&2
+            exit 1
+          fi
+
+          if [ -n "${POETRY_VERSION}" ] && ! echo "${POETRY_VERSION}" | grep -Eq '^[0-9]+(\.[0-9]+){,2}$'; then
+            echo "Error: Invalid poetry_version format: ${POETRY_VERSION}" >&2
+            exit 1
+          fi
+
+          if [ -n "${UV_VERSION}" ] && ! echo "${UV_VERSION}" | grep -Eq '^[0-9]+(\.[0-9]+){,2}$'; then
+            echo "Error: Invalid uv_version format: ${UV_VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Set BUILD_VARIANT
+        env:
+          POETRY_VERSION: ${{ inputs.poetry_version }}
+          UV_VERSION: ${{ inputs.uv_version }}
+        run: |
+          # Set BUILD_VARIANT environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          BUILD_VARIANT='base'
+          if [ -n "${POETRY_VERSION}" ] && [ -n "${UV_VERSION}" ]; then
+              BUILD_VARIANT='full'
+          elif [ -n "${POETRY_VERSION}" ]; then
+              BUILD_VARIANT='poetry'
+          elif [ -n "${UV_VERSION}" ]; then
+              BUILD_VARIANT='uv'
+          fi
+
+          set_github_env 'BUILD_VARIANT' "${BUILD_VARIANT}" non-optional non-secret verbose
+
+      - name: Set PYTHON_IMAGE_TAG
+        env:
+          PYTHON_VERSION: ${{ inputs.python_version }}
+          PYTHON_IMAGE_VARIANT: ${{ inputs.python_image_variant }}
+        run: |
+          # Set PYTHON_IMAGE_TAG environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          PYTHON_IMAGE_TAG="${PYTHON_VERSION}"
+          if [ -n "${PYTHON_IMAGE_VARIANT}" ]; then
+            PYTHON_IMAGE_TAG="${PYTHON_IMAGE_TAG}-${PYTHON_IMAGE_VARIANT}"
+          fi
+
+          set_github_env 'PYTHON_IMAGE_TAG' "${PYTHON_IMAGE_TAG}" non-optional non-secret verbose
+
+      - name: Set IMAGE_TAGS
+        env:
+          PYTHON_VERSION: ${{ inputs.python_version }}
+          PYTHON_IMAGE_VARIANT: ${{ inputs.python_image_variant }}
+          POETRY_VERSION: ${{ inputs.poetry_version }}
+          UV_VERSION: ${{ inputs.uv_version }}
+          PYTHON_TAG_LEVEL: ${{ inputs.python_tag_level }}
+          POETRY_TAG_LEVEL: ${{ inputs.poetry_tag_level }}
+          UV_TAG_LEVEL: ${{ inputs.uv_tag_level }}
+        run: |
+          # Set IMAGE_TAGS environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          export COMPACT_OUTPUT='true'
+          export PYTHON_VERSION="${PYTHON_VERSION}"
+          export PYTHON_IMAGE_VARIANT="${PYTHON_IMAGE_VARIANT}"
+          export POETRY_VERSION="${POETRY_VERSION}"
+          export UV_VERSION="${UV_VERSION}"
+          export PYTHON_TAG_LEVEL="${PYTHON_TAG_LEVEL}"
+          export POETRY_TAG_LEVEL="${POETRY_TAG_LEVEL}"
+          export UV_TAG_LEVEL="${UV_TAG_LEVEL}"
+
+          image_tags_file="$(mktemp)"
+          ./scripts/image-tags.sh --compact > "${image_tags_file}"
+          IMAGE_TAGS="$(cat "${image_tags_file}")"
+
+          set_github_env 'IMAGE_TAGS' "${IMAGE_TAGS}" non-optional non-secret verbose
+
+      - name: Build matrix from PUSH_PLATFORMS
+        env:
+          PUSH_PLATFORMS: ${{ env.PUSH_PLATFORMS }}
+        run: |
+          # Build job matrix from PUSH_PLATFORMS variable
+          set -euo pipefail
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Transform list of comma-separated platforms
+          # to job matrix configuration in JSON format.
+          MATRIX_JSON="$(
+            echo "${PUSH_PLATFORMS:-linux/amd64}" \
+            | jq -Rn '
+              input
+              | split("[\\s,]+"; null)
+              | map(gsub("^\\s+|\\s+$"; ""))
+              | map(select(length > 0))
+              | map({
+                platform: .,
+                qemu_platform: null,
+                runner: (
+                  if . == "linux/amd64" then "ubuntu-latest"
+                  elif . == "linux/arm64" then "ubuntu-24.04-arm"
+                  else "ubuntu-latest"
+                  end
+                )
+              })
+              | { include: . }
+            '
+          )"
+
+          set_github_env 'MATRIX_JSON' "${MATRIX_JSON}" non-optional non-secret verbose
+
+      - name: Set job outputs
+        id: outputs
+        env:
+          BUILD_VARIANT: ${{ env.BUILD_VARIANT }}
+          PYTHON_IMAGE_TAG: ${{ env.PYTHON_IMAGE_TAG }}
+          IMAGE_TAGS: ${{ env.IMAGE_TAGS }}
+          MATRIX_JSON: ${{ env.MATRIX_JSON }}
+        run: |
+          # Set job output variables
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_output.sh
+
+          set_github_output 'build_variant' "${BUILD_VARIANT}" non-optional verbose
+          set_github_output 'python_image_tag' "${PYTHON_IMAGE_TAG}" non-optional verbose
+          set_github_output 'image_tags' "${IMAGE_TAGS}" non-optional verbose
+          set_github_output 'matrix' "${MATRIX_JSON}" non-optional verbose
+
+  # Build & push job
+  build-push:
+    name: Build & push
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+
+    # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
+    # https://github.com/actions/partner-runner-images/blob/main/images/arm-ubuntu-24-image.md
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+
+    # Job dependencies
+    needs:
+      - prepare
+
+    # Set GITHUB_TOKEN permissions for the job
+    permissions:
+      contents: read
+      packages: write
+
+    # Set environment variables for the job
+    env:
+      IMAGE_TAGS: ${{ needs.prepare.outputs.image_tags }}
+      BUILD_PLATFORM: ${{ matrix.platform }}
+      BUILD_VARIANT: ${{ needs.prepare.outputs.build_variant }}
+      PYTHON_VERSION: ${{ inputs.python_version }}
+      PYTHON_IMAGE_TAG: ${{ needs.prepare.outputs.python_image_tag }}
+      POETRY_VERSION: ${{ inputs.poetry_version }}
+      UV_VERSION: ${{ inputs.uv_version }}
+
+    steps:
+
+      # Initialization steps
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Preparation steps
+
+      - name: Set PLATFORM_SUFFIX
+        env:
+          BUILD_PLATFORM: ${{ env.BUILD_PLATFORM }}
+        run: |
+          # Set PLATFORM_SUFFIX environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          PLATFORM_SUFFIX="$(echo "${BUILD_PLATFORM}" | cut -d/ -f2)"
+
+          set_github_env 'PLATFORM_SUFFIX' "${PLATFORM_SUFFIX}" non-optional non-secret verbose
+
+      - name: Set Docker Hub registry credentials
+        if: env.DHCR_ENABLED == 'true'
+        env:
+          REGISTRY_URL: docker.io
+          REGISTRY_USERNAME: ${{ vars.DHCR_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.DHCR_TOKEN }}
+          REGISTRY_NAMESPACE: ${{ vars.DHCR_USERNAME }}
+          IMAGES_PREFIX: ${{ env.IMAGES_PREFIX }}
+          IMAGES_SUFFIX: ${{ env.IMAGES_SUFFIX }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_PATH: ${{ github.repository }}
+        run: |
+          # Set Docker Hub registry credentials
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+          . ./.github/workflows/scripts/set_registry_credentials.sh
+
+          set_registry_credentials \
+            'DHCR_URL' \
+            'DHCR_IMAGES_NAME' \
+            'DHCR_USERNAME' \
+            'DHCR_TOKEN'
+
+      - name: Set GitHub registry credentials
+        if: env.GHCR_ENABLED == 'true'
+        env:
+          REGISTRY_URL: ghcr.io
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_NAMESPACE: ${{ github.repository_owner }}
+          IMAGES_PREFIX: ${{ env.IMAGES_PREFIX }}
+          IMAGES_SUFFIX: ${{ env.IMAGES_SUFFIX }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_PATH: ${{ github.repository }}
+        run: |
+          # Set GitHub registry credentials
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+          . ./.github/workflows/scripts/set_registry_credentials.sh
+
+          set_registry_credentials \
+            'GHCR_URL' \
+            'GHCR_IMAGES_NAME' \
+            'GHCR_USERNAME' \
+            'GHCR_TOKEN'
+
+      - name: Set custom registry credentials
+        if: env.CUSTOM_CR_ENABLED == 'true'
+        env:
+          REGISTRY_URL: ${{ vars.CUSTOM_CR_URL }}
+          REGISTRY_USERNAME: ${{ vars.CUSTOM_CR_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.CUSTOM_CR_TOKEN }}
+          REGISTRY_NAMESPACE: ${{ vars.CUSTOM_CR_NAMESPACE }}
+          IMAGES_PREFIX: ${{ env.IMAGES_PREFIX }}
+          IMAGES_SUFFIX: ${{ env.IMAGES_SUFFIX }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_PATH: ${{ github.repository }}
+        run: |
+          # Set custom registry credentials
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+          . ./.github/workflows/scripts/set_registry_credentials.sh
+
+          set_registry_credentials \
+            'CUSTOM_CR_URL' \
+            'CUSTOM_CR_IMAGES_NAME' \
+            'CUSTOM_CR_USERNAME' \
+            'CUSTOM_CR_TOKEN'
+
+      - name: Set IMAGE_REFS
+        env:
+          DHCR_ENABLED: ${{ env.DHCR_ENABLED }}
+          DHCR_IMAGES_NAME: ${{ env.DHCR_IMAGES_NAME }}
+          GHCR_ENABLED: ${{ env.GHCR_ENABLED }}
+          GHCR_IMAGES_NAME: ${{ env.GHCR_IMAGES_NAME }}
+          CUSTOM_CR_ENABLED: ${{ env.CUSTOM_CR_ENABLED }}
+          CUSTOM_CR_IMAGES_NAME: ${{ env.CUSTOM_CR_IMAGES_NAME }}
+          IMAGE_TAGS: ${{ env.IMAGE_TAGS }}
+        run: |
+          # Set IMAGE_REFS environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Break down IMAGE_TAGS into a list of image tags
+          IMAGE_TAGS_LIST="$(
+            printf '%s\n' "$IMAGE_TAGS" \
+            | tr ',' '\n'
+          )"
+
+          IMAGE_REFS=''
+
+          # Include image refs for all tags in Docker Hub registry
+          if [ "${DHCR_ENABLED}" = "true" ] && [ -n "${DHCR_IMAGES_NAME}" ]; then
+            while IFS= read -r image_tag; do
+              IMAGE_REFS="${IMAGE_REFS},${DHCR_IMAGES_NAME}:${image_tag}"
+            done <<< "$IMAGE_TAGS_LIST"
+          fi
+
+          # Include image refs for all tags in GitHub registry
+          if [ "${GHCR_ENABLED}" = "true" ] && [ -n "${GHCR_IMAGES_NAME}" ]; then
+            while IFS= read -r image_tag; do
+              IMAGE_REFS="${IMAGE_REFS},${GHCR_IMAGES_NAME}:${image_tag}"
+            done <<< "$IMAGE_TAGS_LIST"
+          fi
+
+          # Include image refs for all tags in custom registry
+          if [ "${CUSTOM_CR_ENABLED}" = "true" ] && [ -n "${CUSTOM_CR_IMAGES_NAME}" ]; then
+            while IFS= read -r image_tag; do
+              IMAGE_REFS="${IMAGE_REFS},${CUSTOM_CR_IMAGES_NAME}:${image_tag}"
+            done <<< "$IMAGE_TAGS_LIST"
+          fi
+
+          # Remove leading comma
+          IMAGE_REFS=${IMAGE_REFS#,}
+
+          if [ -z "${IMAGE_REFS}" ]; then
+            echo 'Error: No Docker image tags generated.' >&2
+            exit 1
+          fi
+
+          set_github_env 'IMAGE_REFS' "${IMAGE_REFS}" non-optional non-secret verbose
+
+      - name: Set PLATFORM_IMAGE_REFS
+        env:
+          IMAGE_REFS: ${{ env.IMAGE_REFS }}
+          PLATFORM_SUFFIX: ${{ env.PLATFORM_SUFFIX }}
+        run: |
+          # Set PLATFORM_IMAGE_REFS environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Break down IMAGE_REFS into a list of image refs
+          # Append the platform suffix to each image ref
+          PLATFORM_IMAGE_REFS="$(
+            printf '%s\n' "$IMAGE_REFS" \
+            | tr ',' '\n' \
+            | sed 's/$/-'"${PLATFORM_SUFFIX}"'/' \
+            | paste -sd, -
+          )"
+
+          set_github_env 'PLATFORM_IMAGE_REFS' "${PLATFORM_IMAGE_REFS}" non-optional non-secret verbose
+
+      # Execution steps
+
+      - name: Login to Docker Hub registry
+        if: env.DHCR_URL
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.DHCR_URL }}
+          username: ${{ env.DHCR_USERNAME }}
+          password: ${{ env.DHCR_TOKEN }}
+
+      - name: Login to GitHub registry
+        if: env.GHCR_URL
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.GHCR_URL }}
+          username: ${{ env.GHCR_USERNAME }}
+          password: ${{ env.GHCR_TOKEN }}
+
+      - name: Login to custom registry
+        if: env.CUSTOM_CR_URL
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.CUSTOM_CR_URL }}
+          username: ${{ env.CUSTOM_CR_USERNAME }}
+          password: ${{ env.CUSTOM_CR_TOKEN }}
+
+      - name: Set up QEMU
+        if: matrix.qemu_platform != null
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: ${{ matrix.qemu_platform }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build & push Docker image
+        uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_CHECKS_ANNOTATIONS: true
+          DOCKER_BUILD_SUMMARY: true
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          tags: ${{ env.PLATFORM_IMAGE_REFS }}
+          file: ${{ env.SERVICE_DIR }}/Dockerfile
+          context: ${{ env.SERVICE_DIR }}
+          build-contexts: ${{ env.BUILD_CONTEXTS }}
+          target: python_devbox
+          build-args: |
+            BUILD_VARIANT=${{ env.BUILD_VARIANT }}
+            PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+            PYTHON_IMAGE_TAG=${{ env.PYTHON_IMAGE_TAG }}
+            POETRY_VERSION=${{ env.POETRY_VERSION }}
+            UV_VERSION=${{ env.UV_VERSION }}
+          platforms: ${{ matrix.platform }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Push manifest job
+  push-manifest:
+    name: Push manifest
+
+    # https://github.com/actions/runner-images/blob/main/images/ubuntu-slim/ubuntu-slim-Readme.md
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+
+    # Job dependencies
+    needs:
+      - prepare
+      - build-push
+
+    # Set GITHUB_TOKEN permissions for the job
+    permissions:
+      contents: read
+      packages: write
+
+    # Set environment variables for the job
+    env:
+      PUSH_PLATFORMS: ${{ vars.PUSH_PLATFORMS }}
+      IMAGE_TAGS: ${{ needs.prepare.outputs.image_tags }}
+
+    steps:
+
+      # Initialization steps
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Dependency steps
+
+      - name: Install jq
+        run: |
+          # apt-get install jq
+          sudo apt-get -q update
+          sudo apt-get -qy install --no-install-recommends jq
+
+      # Preparation steps
+
+      - name: Set Docker Hub registry credentials
+        if: env.DHCR_ENABLED == 'true'
+        env:
+          REGISTRY_URL: docker.io
+          REGISTRY_USERNAME: ${{ vars.DHCR_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.DHCR_TOKEN }}
+          REGISTRY_NAMESPACE: ${{ vars.DHCR_USERNAME }}
+          IMAGES_PREFIX: ${{ env.IMAGES_PREFIX }}
+          IMAGES_SUFFIX: ${{ env.IMAGES_SUFFIX }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_PATH: ${{ github.repository }}
+        run: |
+          # Set Docker Hub registry credentials
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+          . ./.github/workflows/scripts/set_registry_credentials.sh
+
+          set_registry_credentials \
+            'DHCR_URL' \
+            'DHCR_IMAGES_NAME' \
+            'DHCR_USERNAME' \
+            'DHCR_TOKEN'
+
+      - name: Set GitHub registry credentials
+        if: env.GHCR_ENABLED == 'true'
+        env:
+          REGISTRY_URL: ghcr.io
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_NAMESPACE: ${{ github.repository_owner }}
+          IMAGES_PREFIX: ${{ env.IMAGES_PREFIX }}
+          IMAGES_SUFFIX: ${{ env.IMAGES_SUFFIX }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_PATH: ${{ github.repository }}
+        run: |
+          # Set GitHub registry credentials
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+          . ./.github/workflows/scripts/set_registry_credentials.sh
+
+          set_registry_credentials \
+            'GHCR_URL' \
+            'GHCR_IMAGES_NAME' \
+            'GHCR_USERNAME' \
+            'GHCR_TOKEN'
+
+      - name: Set custom registry credentials
+        if: env.CUSTOM_CR_ENABLED == 'true'
+        env:
+          REGISTRY_URL: ${{ vars.CUSTOM_CR_URL }}
+          REGISTRY_USERNAME: ${{ vars.CUSTOM_CR_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.CUSTOM_CR_TOKEN }}
+          REGISTRY_NAMESPACE: ${{ vars.CUSTOM_CR_NAMESPACE }}
+          IMAGES_PREFIX: ${{ env.IMAGES_PREFIX }}
+          IMAGES_SUFFIX: ${{ env.IMAGES_SUFFIX }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_PATH: ${{ github.repository }}
+        run: |
+          # Set custom registry credentials
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+          . ./.github/workflows/scripts/set_registry_credentials.sh
+
+          set_registry_credentials \
+            'CUSTOM_CR_URL' \
+            'CUSTOM_CR_IMAGES_NAME' \
+            'CUSTOM_CR_USERNAME' \
+            'CUSTOM_CR_TOKEN'
+
+      - name: Set IMAGE_REFS
+        env:
+          DHCR_ENABLED: ${{ env.DHCR_ENABLED }}
+          DHCR_IMAGES_NAME: ${{ env.DHCR_IMAGES_NAME }}
+          GHCR_ENABLED: ${{ env.GHCR_ENABLED }}
+          GHCR_IMAGES_NAME: ${{ env.GHCR_IMAGES_NAME }}
+          CUSTOM_CR_ENABLED: ${{ env.CUSTOM_CR_ENABLED }}
+          CUSTOM_CR_IMAGES_NAME: ${{ env.CUSTOM_CR_IMAGES_NAME }}
+          IMAGE_TAGS: ${{ env.IMAGE_TAGS }}
+        run: |
+          # Set IMAGE_REFS environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Break down IMAGE_TAGS into a list of image tags
+          IMAGE_TAGS_LIST="$(
+            printf '%s\n' "$IMAGE_TAGS" \
+            | tr ',' '\n'
+          )"
+
+          IMAGE_REFS=''
+
+          # Include image refs for all tags in Docker Hub registry
+          if [ "${DHCR_ENABLED}" = "true" ] && [ -n "${DHCR_IMAGES_NAME}" ]; then
+            while IFS= read -r image_tag; do
+              IMAGE_REFS="${IMAGE_REFS},${DHCR_IMAGES_NAME}:${image_tag}"
+            done <<< "$IMAGE_TAGS_LIST"
+          fi
+
+          # Include image refs for all tags in GitHub registry
+          if [ "${GHCR_ENABLED}" = "true" ] && [ -n "${GHCR_IMAGES_NAME}" ]; then
+            while IFS= read -r image_tag; do
+              IMAGE_REFS="${IMAGE_REFS},${GHCR_IMAGES_NAME}:${image_tag}"
+            done <<< "$IMAGE_TAGS_LIST"
+          fi
+
+          # Include image refs for all tags in custom registry
+          if [ "${CUSTOM_CR_ENABLED}" = "true" ] && [ -n "${CUSTOM_CR_IMAGES_NAME}" ]; then
+            while IFS= read -r image_tag; do
+              IMAGE_REFS="${IMAGE_REFS},${CUSTOM_CR_IMAGES_NAME}:${image_tag}"
+            done <<< "$IMAGE_TAGS_LIST"
+          fi
+
+          # Remove leading comma
+          IMAGE_REFS=${IMAGE_REFS#,}
+
+          if [ -z "${IMAGE_REFS}" ]; then
+            echo 'Error: No Docker image tags generated.' >&2
+            exit 1
+          fi
+
+          set_github_env 'IMAGE_REFS' "${IMAGE_REFS}" non-optional non-secret verbose
+
+      # Execution steps
+
+      - name: Login to Docker Hub registry
+        if: env.DHCR_URL
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.DHCR_URL }}
+          username: ${{ env.DHCR_USERNAME }}
+          password: ${{ env.DHCR_TOKEN }}
+
+      - name: Login to GitHub registry
+        if: env.GHCR_URL
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.GHCR_URL }}
+          username: ${{ env.GHCR_USERNAME }}
+          password: ${{ env.GHCR_TOKEN }}
+
+      - name: Login to custom registry
+        if: env.CUSTOM_CR_URL
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.CUSTOM_CR_URL }}
+          username: ${{ env.CUSTOM_CR_USERNAME }}
+          password: ${{ env.CUSTOM_CR_TOKEN }}
+
+      - name: Push Docker image manifest
+        env:
+          PUSH_PLATFORMS: ${{ env.PUSH_PLATFORMS }}
+          IMAGE_REFS: ${{ env.IMAGE_REFS }}
+        run: |
+          # Push Docker image manifest
+          set -euo pipefail
+
+          # Transform list of comma-separated platforms
+          # to a list of platform suffixes (e.g. "amd64", "arm64").
+          PLATFORM_SUFFIXES="$(
+            echo "${PUSH_PLATFORMS:-linux/amd64}" \
+            | jq -Rnrc '
+              input
+              | split("[\\s,]+"; null)
+              | map(gsub("^\\s+|\\s+$"; ""))
+              | map(. | split("/") | last)
+              | map(select(length > 0))
+              | unique
+              | .[]
+            '
+          )"
+
+          # Transform list of comma-separated image tags
+          # to a list of image tags.
+          IMAGE_REFS_LIST="$(
+            echo "${IMAGE_REFS}" \
+            | jq -Rnrc '
+              input
+              | split("[\\s,]+"; null)
+              | map(gsub("^\\s+|\\s+$"; ""))
+              | map(select(length > 0))
+              | unique
+              | .[]
+            '
+          )"
+
+          # Iterate over image refs
+          # Create a manifest for each image ref with all platform suffixes.
+          while read -r image_ref; do
+
+            # Build list of this image ref with platform suffixes
+            TARGETS=''
+            while read -r platform_suffix; do
+              TARGETS="${TARGETS} ${image_ref}-${platform_suffix}"
+            done <<< "${PLATFORM_SUFFIXES}"
+
+            # Create manifest for this image ref with all platform suffixes
+            echo "Creating manifest: ${image_ref}"
+            docker buildx imagetools create \
+              -t "${image_ref}" \
+              ${TARGETS}
+
+          done <<< "${IMAGE_REFS_LIST}"
+
+      - name: Set job outputs
+        id: outputs
+        env:
+          IMAGE_REFS: ${{ env.IMAGE_REFS }}
+        run: |
+          # Set job output variables
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_output.sh
+
+          set_github_output 'image_refs' "${IMAGE_REFS}" non-optional verbose

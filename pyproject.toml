@@ -1,0 +1,9 @@
+[project]
+name = "python-devbox"
+version = "0.0.0"
+description = "Python development Docker images for development and testing environments"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0.3",
+]
