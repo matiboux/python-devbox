@@ -1,4 +1,4 @@
-name: Run build & push matrix
+name: Build & Push CD matrix
 
 # GitHub variables:
 # (inherit from build-push.yml)
