@@ -146,7 +146,10 @@ jobs:
       PUSH_PLATFORMS: ${{ vars.PUSH_PLATFORMS }}
 
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
+      build_variant: ${{ steps.outputs.outputs.build_variant }}
+      python_image_tag: ${{ steps.outputs.outputs.python_image_tag }}
+      image_refs: ${{ steps.outputs.outputs.image_refs }}
+      matrix: ${{ steps.outputs.outputs.matrix }}
 
     steps:
 
@@ -270,10 +273,10 @@ jobs:
           POETRY_VERSION: ${{ inputs.poetry_version }}
           UV_VERSION: ${{ inputs.uv_version }}
         run: |
-          # Set BUILD_VARIANT output variable
+          # Set BUILD_VARIANT environment variable
 
           # Load helper scripts
-          . ./.github/workflows/scripts/set_github_output.sh
+          . ./.github/workflows/scripts/set_github_env.sh
 
           BUILD_VARIANT='base'
           if [ -n "${POETRY_VERSION}" ] && [ -n "${UV_VERSION}" ]; then
@@ -284,24 +287,24 @@ jobs:
               BUILD_VARIANT='uv'
           fi
 
-          set_github_output 'build_variant' "${BUILD_VARIANT}" non-optional verbose
+          set_github_env 'BUILD_VARIANT' "${BUILD_VARIANT}" non-optional non-secret verbose
 
       - name: Set PYTHON_IMAGE_TAG
         env:
           PYTHON_VERSION: ${{ inputs.python_version }}
           PYTHON_IMAGE_VARIANT: ${{ inputs.python_image_variant }}
         run: |
-          # Set PYTHON_IMAGE_TAG output variable
+          # Set PYTHON_IMAGE_TAG environment variable
 
           # Load helper scripts
-          . ./.github/workflows/scripts/set_github_output.sh
+          . ./.github/workflows/scripts/set_github_env.sh
 
           PYTHON_IMAGE_TAG="${PYTHON_VERSION}"
           if [ -n "${PYTHON_IMAGE_VARIANT}" ]; then
             PYTHON_IMAGE_TAG="${PYTHON_IMAGE_TAG}-${PYTHON_IMAGE_VARIANT}"
           fi
 
-          set_github_output 'python_image_tag' "${PYTHON_IMAGE_TAG}" non-optional verbose
+          set_github_env 'PYTHON_IMAGE_TAG' "${PYTHON_IMAGE_TAG}" non-optional non-secret verbose
 
       - name: Set IMAGE_TAGS
         env:
@@ -343,10 +346,10 @@ jobs:
           CUSTOM_CR_IMAGES_NAME: ${{ env.CUSTOM_CR_IMAGES_NAME }}
           IMAGE_TAGS: ${{ env.IMAGE_TAGS }}
         run: |
-          # Set IMAGE_REFS output variable
+          # Set IMAGE_REFS environment variable
 
           # Load helper scripts
-          . ./.github/workflows/scripts/set_github_output.sh
+          . ./.github/workflows/scripts/set_github_env.sh
 
           # Break down IMAGE_TAGS into a list of image tags
           IMAGE_TAGS_LIST="$(
@@ -385,10 +388,9 @@ jobs:
             exit 1
           fi
 
-          set_github_output 'image_refs' "${IMAGE_REFS}" non-optional verbose
+          set_github_env 'IMAGE_REFS' "${IMAGE_REFS}" non-optional non-secret verbose
 
       - name: Build matrix from PUSH_PLATFORMS
-        id: matrix
         env:
           PUSH_PLATFORMS: ${{ env.PUSH_PLATFORMS }}
         run: |
@@ -396,7 +398,7 @@ jobs:
           set -euo pipefail
 
           # Load helper scripts
-          . ./.github/workflows/scripts/set_github_output.sh
+          . ./.github/workflows/scripts/set_github_env.sh
 
           # Transform list of comma-separated platforms
           # to job matrix configuration in JSON format.
@@ -421,6 +423,24 @@ jobs:
             '
           )"
 
+          set_github_env 'MATRIX_JSON' "${MATRIX_JSON}" non-optional non-secret verbose
+
+      - name: Set job outputs
+        id: outputs
+        env:
+          BUILD_VARIANT: ${{ env.BUILD_VARIANT }}
+          PYTHON_IMAGE_TAG: ${{ env.PYTHON_IMAGE_TAG }}
+          IMAGE_REFS: ${{ env.IMAGE_REFS }}
+          MATRIX_JSON: ${{ env.MATRIX_JSON }}
+        run: |
+          # Set job output variables
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_output.sh
+
+          set_github_output 'build_variant' "${BUILD_VARIANT}" non-optional verbose
+          set_github_output 'python_image_tag' "${PYTHON_IMAGE_TAG}" non-optional verbose
+          set_github_output 'image_refs' "${IMAGE_REFS}" non-optional verbose
           set_github_output 'matrix' "${MATRIX_JSON}" non-optional verbose
 
   # Build & push job
