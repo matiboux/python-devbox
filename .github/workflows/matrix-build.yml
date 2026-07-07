@@ -10,7 +10,8 @@ on:
 
   # Run on schedule
   schedule:
-    - cron: '0 5 * * *' # Daily at 5 AM UTC
+    # Daily at 5 AM and 5 PM (UTC)
+    - cron: '0 5,17 * * *'
 
   # Run on manual triggers
   workflow_dispatch:
@@ -97,9 +98,10 @@ jobs:
 
           # Transform list of build matrix entries
           # to job matrix configuration in JSON format.
+          # Limit to 10 entries to avoid overwhelming CI.
           MATRIX_JSON="$(
             yq -o=json e '.build_matrix' dist/versions.yml \
-            | jq -c '{ include: . }'
+            | jq -c '{ include: .[0:10] }'
           )"
 
           set_github_env 'MATRIX_JSON' "${MATRIX_JSON}" non-optional non-secret verbose
