@@ -658,6 +658,7 @@ jobs:
 
     # Job dependencies
     needs:
+      - prepare
       - build-push
 
     # Set GITHUB_TOKEN permissions for the job
