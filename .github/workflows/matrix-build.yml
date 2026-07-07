@@ -107,9 +107,6 @@ jobs:
       - name: Set job outputs
         id: outputs
         env:
-          BUILD_VARIANT: ${{ env.BUILD_VARIANT }}
-          PYTHON_IMAGE_TAG: ${{ env.PYTHON_IMAGE_TAG }}
-          IMAGE_REFS: ${{ env.IMAGE_REFS }}
           MATRIX_JSON: ${{ env.MATRIX_JSON }}
         run: |
           # Set job output variables
@@ -138,7 +135,6 @@ jobs:
 
     uses: ./.github/workflows/build-push.yml
     with:
-      image_tag: ${{ matrix.image_tag }}
       python_version: ${{ matrix.python_version }}
       python_image_variant: ${{ matrix.python_image_variant }}
       poetry_version: ${{ matrix.poetry_version }}
