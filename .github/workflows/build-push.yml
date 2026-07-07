@@ -417,9 +417,9 @@ jobs:
 
           set_github_output 'matrix' "${MATRIX_JSON}" non-optional verbose
 
-  # Build & Push App job
-  push-app:
-    name: Build & Push App
+  # Build & push job
+  build-push:
+    name: Build & push
 
     strategy:
       fail-fast: false
@@ -632,7 +632,7 @@ jobs:
 
     # Job dependencies
     needs:
-      - push-app
+      - build-push
 
     # Set GITHUB_TOKEN permissions for the job
     permissions:
