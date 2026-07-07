@@ -128,6 +128,7 @@ jobs:
 
     uses: ./.github/workflows/build-push.yml
     with:
+      image_tag: ${{ matrix.image_tag }}
       python_version: ${{ matrix.python_version }}
       python_image_variant: ${{ matrix.python_image_variant }}
       poetry_version: ${{ matrix.poetry_version }}
