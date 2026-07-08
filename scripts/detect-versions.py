@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 from datetime import datetime, timezone
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional, Tuple
+import argparse
 import json
 import os
 import re
@@ -19,9 +20,18 @@ class DetectVersions:
         self,
         constraints_path: str = 'constraints.yml',
         output_path: str = 'dist/versions.yml',
+        python_version_filter: str | None = None,
+        poetry_version_filter: str | None = None,
+        uv_version_filter: str | None = None,
     ):
+
         self.constraints: Dict[str, Any] = self._load_yaml(constraints_path)
         self.output_path: str = output_path
+        self.python_version_filter: str | None = python_version_filter
+        self.poetry_version_filter: str | None = poetry_version_filter
+        self.uv_version_filter: str | None = uv_version_filter
+        self._narrow_mode: bool = bool(python_version_filter or poetry_version_filter or uv_version_filter)
+
         self.python_versions: List[str] = []
         self.poetry_versions: List[str] = []
         self.uv_versions: List[str] = []
@@ -57,13 +67,27 @@ class DetectVersions:
             print(f"Warning: Failed to fetch {url}: {e}", file=sys.stderr)
             return {}
 
-    def _get_version_tuple(self, version: str) -> tuple:
+    def _get_version_tuple(self, version: str) -> Tuple[int, int, int]:
         parts = version.split('.', 2)
         return (
             int(parts[0]),
             int(parts[1]) if len(parts) > 1 else 0,
             int(parts[2]) if len(parts) > 2 else 0
         )
+
+    def _get_version_filter_tuple(self, version_filter: str | None) -> Tuple[int, ...] | None:
+        if not version_filter:
+            return None
+        try:
+            return tuple(int(part) for part in version_filter.strip().split('.')[:3])
+        except ValueError:
+            print(f"Warning: Invalid version filter '{version_filter}', ignoring.", file=sys.stderr)
+            return None
+
+    def _version_matches_filter(self, version_tuple: Tuple[int, int, int], filter_tuple: Tuple[int, ...] | None) -> bool:
+        if not filter_tuple:
+            return True
+        return version_tuple[:len(filter_tuple)] == filter_tuple
 
     def detect_python_versions(
         self,
@@ -72,10 +96,16 @@ class DetectVersions:
         """Detect latest Python versions and image tags from Docker Hub."""
         print('Detecting Python versions...')
 
+        if self._narrow_mode and not self.python_version_filter:
+            print('Skipping Python version detection (not specified).')
+            self.python_versions = []
+            return []
+
         min_version = self.constraints['python']['min_version']
         min_version_tuple = self._get_version_tuple(min_version)
         extra_versions = set(self.constraints['python'].get('extra_versions', []))
         skip_versions = self.constraints['python'].get('skip_tags', [])
+        version_filter_tuple = self._get_version_filter_tuple(self.python_version_filter)
         minor_versions = {}
 
         url = 'https://hub.docker.com/v2/namespaces/library/repositories/python/tags?page_size=100'
@@ -97,7 +127,12 @@ class DetectVersions:
                     version_tuple = self._get_version_tuple(tag_name)
                     version_minor = f"{version_tuple[0]}.{version_tuple[1]}"
                     version_full = f"{version_tuple[0]}.{version_tuple[1]}.{version_tuple[2]}"
-                    if ((
+                    if version_filter_tuple:
+                        if not self._version_matches_filter(version_tuple, version_filter_tuple):
+                            continue
+                        if version_minor in skip_versions or version_full in skip_versions:
+                            continue
+                    elif ((
                         version_tuple < min_version_tuple and
                         version_minor not in extra_versions and version_full not in extra_versions
                     ) or version_minor in skip_versions or version_full in skip_versions):
@@ -122,8 +157,12 @@ class DetectVersions:
             for version_full in past_detected_versions:
                 version_tuple = self._get_version_tuple(version_full)
                 version_minor = f"{version_tuple[0]}.{version_tuple[1]}"
-                if version_tuple >= min_version_tuple:
-                    minor_versions[version_minor] = version_full
+                if version_filter_tuple:
+                    if not self._version_matches_filter(version_tuple, version_filter_tuple):
+                        continue
+                elif version_tuple < min_version_tuple:
+                    continue
+                minor_versions[version_minor] = version_full
 
         detected_versions = list(minor_versions.values())
         detected_versions.sort(key=lambda v: self._get_version_tuple(v), reverse=True)
@@ -138,10 +177,12 @@ class DetectVersions:
         extra_versions: List[str] = [],
         skip_versions: List[str] = [],
         past_detected_versions: List[str] = [],
+        version_filter: str | None = None,
     ) -> List[str]:
         """Detect package versions from PyPI using pip."""
 
         min_version_tuple = self._get_version_tuple(min_version)
+        version_filter_tuple = self._get_version_filter_tuple(version_filter)
         minor_versions = {}
 
         try:
@@ -169,7 +210,12 @@ class DetectVersions:
                         version_tuple = self._get_version_tuple(version)
                         version_minor = f"{version_tuple[0]}.{version_tuple[1]}"
                         version_full = f"{version_tuple[0]}.{version_tuple[1]}.{version_tuple[2]}"
-                        if ((
+                        if version_filter_tuple:
+                            if not self._version_matches_filter(version_tuple, version_filter_tuple):
+                                continue
+                            if version_minor in skip_versions or version_full in skip_versions:
+                                continue
+                        elif ((
                             version_tuple < min_version_tuple and
                             version_minor not in extra_versions and version_full not in extra_versions
                         ) or version_minor in skip_versions or version_full in skip_versions):
@@ -189,8 +235,12 @@ class DetectVersions:
             for version_full in past_detected_versions:
                 version_tuple = self._get_version_tuple(version_full)
                 version_minor = f"{version_tuple[0]}.{version_tuple[1]}"
-                if version_tuple >= min_version_tuple:
-                    minor_versions[version_minor] = version_full
+                if version_filter_tuple:
+                    if not self._version_matches_filter(version_tuple, version_filter_tuple):
+                        continue
+                elif version_tuple < min_version_tuple:
+                    continue
+                minor_versions[version_minor] = version_full
 
         detected_versions = list(minor_versions.values())
         detected_versions.sort(key=lambda v: self._get_version_tuple(v), reverse=True)
@@ -202,13 +252,21 @@ class DetectVersions:
     ) -> List[str]:
         """Detect Poetry versions from PyPI using pip."""
         print('Detecting Poetry versions...')
+
+        if self._narrow_mode and not self.poetry_version_filter:
+            print('Skipping Poetry version detection (not specified).')
+            self.poetry_versions = []
+            return []
+
         detected_versions = self._detect_pip_package_versions(
             package_name='poetry',
             min_version=self.constraints['poetry']['min_version'],
             extra_versions=self.constraints['poetry'].get('extra_versions', []),
             skip_versions=self.constraints['poetry'].get('skip_tags', []),
             past_detected_versions=past_detected_versions,
+            version_filter=self.poetry_version_filter,
         )
+
         print(f"Detected Poetry versions: {detected_versions}")
         self.poetry_versions = detected_versions
         return detected_versions
@@ -219,13 +277,21 @@ class DetectVersions:
     ) -> List[str]:
         """Detect uv versions using pip."""
         print('Detecting uv versions...')
+
+        if self._narrow_mode and not self.uv_version_filter:
+            print('Skipping uv version detection (not specified).')
+            self.uv_versions = []
+            return []
+
         detected_versions = self._detect_pip_package_versions(
             package_name='uv',
             min_version=self.constraints['uv']['min_version'],
             extra_versions=self.constraints['uv'].get('extra_versions', []),
             skip_versions=self.constraints['uv'].get('skip_tags', []),
             past_detected_versions=past_detected_versions,
+            version_filter=self.uv_version_filter,
         )
+
         print(f"Detected uv versions: {detected_versions}")
         self.uv_versions = detected_versions
         return detected_versions
@@ -311,10 +377,15 @@ class DetectVersions:
         latest_poetry_version = self.poetry_versions[0] if self.poetry_versions else None
         latest_uv_version = self.uv_versions[0] if self.uv_versions else None
 
+        include_bare_python = (
+            not self._narrow_mode
+            or (bool(self.python_version_filter) and not self.poetry_version_filter and not self.uv_version_filter)
+        )
+
         build_matrix = []
         for python_version in self.python_versions:
             python_tag_level = 'global' if python_version == latest_python_version else 'minor'
-            if f"{python_version}" not in published_tags:
+            if include_bare_python and f"{python_version}" not in published_tags:
                 build_matrix.append({
                     'image_tag': f"{python_version}",
                     'python_version': python_version,
@@ -431,6 +502,31 @@ def parse_args() -> argparse.Namespace:
         description='Detect Python Devbox versions and generate the build matrix.',
     )
     parser.add_argument(
+        '--python-version',
+        default='',
+        help=(
+            'Limit detection to a specific Python version (major, minor, or full). '
+            'If set alongside --poetry-version/--uv-version, only those combinations are built. '
+            'If left empty while another version is set, Python detection is skipped entirely.'
+        ),
+    )
+    parser.add_argument(
+        '--poetry-version',
+        default='',
+        help=(
+            'Limit detection to a specific Poetry version (major, minor, or full). '
+            'Skipped entirely if left empty while another version is set.'
+        ),
+    )
+    parser.add_argument(
+        '--uv-version',
+        default='',
+        help=(
+            'Limit detection to a specific uv version (major, minor, or full). '
+            'Skipped entirely if left empty while another version is set.'
+        ),
+    )
+    parser.add_argument(
         '--check-published-tags',
         default='true',
         help=(
@@ -449,7 +545,11 @@ def main():
 
     args = parse_args()
 
-    detector = DetectVersions()
+    detector = DetectVersions(
+        python_version_filter=(args.python_version.strip() or None),
+        poetry_version_filter=(args.poetry_version.strip() or None),
+        uv_version_filter=(args.uv_version.strip() or None),
+    )
 
     # Load past detected versions to use as fallback
     past_detected_versions = detector.load_past_detected_versions()
