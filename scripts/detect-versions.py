@@ -96,11 +96,6 @@ class DetectVersions:
         """Detect latest Python versions and image tags from Docker Hub."""
         print('Detecting Python versions...')
 
-        if self._narrow_mode and not self.python_version_filter:
-            print('Skipping Python version detection (not specified).')
-            self.python_versions = []
-            return []
-
         min_version = self.constraints['python']['min_version']
         min_version_tuple = self._get_version_tuple(min_version)
         extra_versions = set(self.constraints['python'].get('extra_versions', []))
@@ -498,8 +493,7 @@ def parse_args() -> argparse.Namespace:
         default='',
         help=(
             'Limit detection to a specific Python version (major, minor, or full). '
-            'If set alongside --poetry-version/--uv-version, only those combinations are built. '
-            'If left empty while another version is set, Python detection is skipped entirely.'
+            'Detects all versions if left empty.'
         ),
     )
     parser.add_argument(
@@ -507,7 +501,8 @@ def parse_args() -> argparse.Namespace:
         default='',
         help=(
             'Limit detection to a specific Poetry version (major, minor, or full). '
-            'Skipped entirely if left empty while another version is set.'
+            'Skipped entirely if left empty while another version is set. '
+            'Detects all versions if left empty and no other version is set.'
         ),
     )
     parser.add_argument(
@@ -515,7 +510,8 @@ def parse_args() -> argparse.Namespace:
         default='',
         help=(
             'Limit detection to a specific uv version (major, minor, or full). '
-            'Skipped entirely if left empty while another version is set.'
+            'Skipped entirely if left empty while another version is set. '
+            'Detects all versions if left empty and no other version is set.'
         ),
     )
     parser.add_argument(
