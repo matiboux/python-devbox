@@ -125,10 +125,10 @@ jobs:
 
           # Transform list of build matrix entries
           # to job matrix configuration in JSON format.
-          # Limit to 10 entries to avoid overwhelming CI.
+          # Limit to 5 entries to avoid overwhelming CI.
           MATRIX_JSON="$(
             yq -o=json e '.build_matrix' dist/versions.yml \
-            | jq -c '{ include: .[0:10] }'
+            | jq -c '{ include: .[0:5] }'
           )"
 
           set_github_env 'MATRIX_JSON' "${MATRIX_JSON}" non-optional non-secret verbose
