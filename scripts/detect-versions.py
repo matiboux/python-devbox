@@ -365,14 +365,6 @@ class DetectVersions:
             published_tags = set()
             print('Skipped published tags check.')
 
-    #   python_version:
-    #   python_image_variant:
-    #   poetry_version:
-    #   uv_version:
-    #   python_tag_level:
-    #   poetry_tag_level:
-    #   uv_tag_level:
-
         latest_python_version = self.python_versions[0] if self.python_versions else None
         latest_poetry_version = self.poetry_versions[0] if self.poetry_versions else None
         latest_uv_version = self.uv_versions[0] if self.uv_versions else None
