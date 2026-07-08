@@ -297,6 +297,7 @@ class DetectVersions:
             print(f"Detected {len(published_tags)} published tags.")
         else:
             published_tags = set()
+            print('Skipped published tags check.')
 
     #   python_version:
     #   python_image_variant:
@@ -425,7 +426,28 @@ class DetectVersions:
         print(f"Versions saved to {self.output_path}.")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description='Detect Python Devbox versions and generate the build matrix.',
+    )
+    parser.add_argument(
+        '--check-published-tags',
+        default='true',
+        help=(
+            'Skip tags already published to the registry (true/false). '
+            'Set to false to force rebuild/inclusion of existing tags.'
+        ),
+    )
+    return parser.parse_args()
+
+
+def _str_to_bool(value: str) -> bool:
+    return str(value).strip().lower() not in ('false', '0', 'no')
+
+
 def main():
+
+    args = parse_args()
 
     detector = DetectVersions()
 
@@ -444,7 +466,9 @@ def main():
     )
 
     # Generate build matrix
-    detector.generate_build_matrix()
+    detector.generate_build_matrix(
+        skip_published_tags=_str_to_bool(args.check_published_tags),
+    )
 
     # Save versions file
     detector.save_versions_file()
