@@ -36,7 +36,6 @@ class DetectVersions:
         self.poetry_versions: List[str] = []
         self.uv_versions: List[str] = []
         self.published_versions: Dict[str, List[str]] = {}
-        self.build_matrix: List[Dict[str, str]] = []
 
     def _load_yaml(self, path: str) -> dict:
         """Load YAML configuration file."""
@@ -346,112 +345,8 @@ class DetectVersions:
 
         return published_tags
 
-    def generate_build_matrix(
-        self,
-        skip_published_tags: bool = True,
-    ) -> List[dict[str, str]]:
-        """Generate GitHub Actions matrix from detected versions."""
-        print('Generating build matrix...')
-
-        if skip_published_tags:
-            published_tags = set(self._fetch_published_tags())
-            print(f"Detected {len(published_tags)} published tags.")
-        else:
-            published_tags = set()
-            print('Skipped published tags check.')
-
-        latest_python_version = self.python_versions[0] if self.python_versions else None
-        latest_poetry_version = self.poetry_versions[0] if self.poetry_versions else None
-        latest_uv_version = self.uv_versions[0] if self.uv_versions else None
-
-        include_bare_python = (
-            not self._narrow_mode
-            or (bool(self.python_version_filter) and not self.poetry_version_filter and not self.uv_version_filter)
-        )
-
-        build_matrix = []
-        for python_version in self.python_versions:
-            python_tag_level = 'global' if python_version == latest_python_version else 'minor'
-            if include_bare_python and f"{python_version}" not in published_tags:
-                build_matrix.append({
-                    'image_tag': f"{python_version}",
-                    'python_version': python_version,
-                    'python_image_variant': '',
-                    'python_tag_level': python_tag_level,
-                })
-                build_matrix.append({
-                    'image_tag': f"{python_version}-slim",
-                    'python_version': python_version,
-                    'python_image_variant': 'slim',
-                    'python_tag_level': python_tag_level,
-                })
-                build_matrix.append({
-                    'image_tag': f"{python_version}-alpine",
-                    'python_version': python_version,
-                    'python_image_variant': 'alpine',
-                    'python_tag_level': python_tag_level,
-                })
-            for poetry_version in self.poetry_versions:
-                poetry_tag_level = 'global' if poetry_version == latest_poetry_version else 'minor'
-                if f"{python_version}-poetry{poetry_version}" not in published_tags:
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-poetry{poetry_version}",
-                        'python_version': python_version,
-                        'python_image_variant': '',
-                        'poetry_version': poetry_version,
-                        'python_tag_level': python_tag_level,
-                        'poetry_tag_level': poetry_tag_level,
-                    })
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-slim-poetry{poetry_version}",
-                        'python_version': python_version,
-                        'python_image_variant': 'slim',
-                        'poetry_version': poetry_version,
-                        'python_tag_level': python_tag_level,
-                        'poetry_tag_level': poetry_tag_level,
-                    })
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-alpine-poetry{poetry_version}",
-                        'python_version': python_version,
-                        'python_image_variant': 'alpine',
-                        'poetry_version': poetry_version,
-                        'python_tag_level': python_tag_level,
-                        'poetry_tag_level': poetry_tag_level,
-                    })
-            for uv_version in self.uv_versions:
-                uv_tag_level = 'global' if uv_version == latest_uv_version else 'minor'
-                if f"{python_version}-uv{uv_version}" not in published_tags:
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-uv{uv_version}",
-                        'python_version': python_version,
-                        'python_image_variant': '',
-                        'uv_version': uv_version,
-                        'python_tag_level': python_tag_level,
-                        'uv_tag_level': uv_tag_level,
-                    })
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-slim-uv{uv_version}",
-                        'python_version': python_version,
-                        'python_image_variant': 'slim',
-                        'uv_version': uv_version,
-                        'python_tag_level': python_tag_level,
-                        'uv_tag_level': uv_tag_level,
-                    })
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-alpine-uv{uv_version}",
-                        'python_version': python_version,
-                        'python_image_variant': 'alpine',
-                        'uv_version': uv_version,
-                        'python_tag_level': python_tag_level,
-                        'uv_tag_level': uv_tag_level,
-                    })
-
-        print(f"Generated {len(build_matrix)} build matrix entries.")
-        self.build_matrix = build_matrix
-        return build_matrix
-
     def save_versions_file(self):
-        """Save detected versions and build matrix to output file."""
+        """Save detected versions to output file."""
         print(f"Saving versions to {self.output_path}...")
 
         # Load existing data to preserve past detected versions
@@ -464,7 +359,6 @@ class DetectVersions:
         python_versions = self.python_versions or existing.get('detected_versions', {}).get('python', {})
         poetry_versions = self.poetry_versions or existing.get('detected_versions', {}).get('poetry', [])
         uv_versions = self.uv_versions or existing.get('detected_versions', {}).get('uv', [])
-        build_matrix = self.build_matrix or existing.get('build_matrix', [])
 
         data = {
             'last_updated': datetime.now(timezone.utc).isoformat() + 'Z',
@@ -473,7 +367,6 @@ class DetectVersions:
                 'poetry': poetry_versions,
                 'uv': uv_versions,
             },
-            'build_matrix': build_matrix,
         }
 
         # Save to output file
@@ -486,7 +379,7 @@ class DetectVersions:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description='Detect Python Devbox versions and generate the build matrix.',
+        description='Detect Python Devbox versions.',
     )
     parser.add_argument(
         '--python-version',
@@ -514,19 +407,7 @@ def parse_args() -> argparse.Namespace:
             'Detects all versions if left empty and no other version is set.'
         ),
     )
-    parser.add_argument(
-        '--check-published-tags',
-        default='true',
-        help=(
-            'Skip tags already published to the registry (true/false). '
-            'Set to false to force rebuild/inclusion of existing tags.'
-        ),
-    )
     return parser.parse_args()
-
-
-def _str_to_bool(value: str) -> bool:
-    return str(value).strip().lower() not in ('false', '0', 'no')
 
 
 def main():
@@ -551,11 +432,6 @@ def main():
     )
     detector.detect_uv_versions(
         past_detected_versions=past_detected_versions.get('uv', []),
-    )
-
-    # Generate build matrix
-    detector.generate_build_matrix(
-        skip_published_tags=_str_to_bool(args.check_published_tags),
     )
 
     # Save versions file
