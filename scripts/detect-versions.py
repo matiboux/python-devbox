@@ -24,10 +24,7 @@ class DetectVersions:
         version_filter: str | None = None,
     ):
 
-        if package_name not in ('python', 'poetry', 'uv'):
-            raise ValueError(f"Invalid package name: {package_name}. Must be 'python', 'poetry', or 'uv'.")
-
-        self.package_name: str = package_name.lower()
+        self.package_name: str = package_name.strip().lower()
         self.constraints: Dict[str, Any] = self._load_yaml(constraints_path)
         self.output_path: str = output_path
         self.version_filter: str | None = version_filter
@@ -39,14 +36,17 @@ class DetectVersions:
             'uv': self._detect_pip_package,
         }
 
+        if self.package_name not in self._detectors:
+            raise ValueError(f"Invalid package name '{self.package_name}'.")
+
+
     def _load_yaml(self, path: str) -> dict:
         """Load YAML configuration file."""
         try:
             with open(path, 'r') as f:
                 return yaml.safe_load(f)
-        except FileNotFoundError:
-            print(f"Error: {path} not found", file=sys.stderr)
-            sys.exit(1)
+        except FileNotFoundError as err:
+            raise FileNotFoundError(f"Error: {path} not found") from err
 
     def load_past_detected_versions(self) -> dict:
         """Load cached detected versions from output file."""
@@ -54,7 +54,7 @@ class DetectVersions:
             with open(self.output_path, 'r') as f:
                 data = yaml.safe_load(f) or {}
                 return data.get('detected_versions', {})
-        except Exception as e:
+        except Exception:
             return {}
 
     def _fetch_json(self, url: str, timeout: int = 10) -> dict:
@@ -315,10 +315,14 @@ def main():
         print('Error: Package name is required. Provide it as a positional argument or via --package option.', file=sys.stderr)
         sys.exit(1)
 
-    detector = DetectVersions(
-        package_name=package_name,
-        version_filter=(args.version.strip() or None),
-    )
+    try:
+        detector = DetectVersions(
+            package_name=package_name,
+            version_filter=(args.version.strip() or None),
+        )
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # Load past detected versions to use as fallback
     past_detected_versions = detector.load_past_detected_versions()
