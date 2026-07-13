@@ -28,7 +28,7 @@ on:
         description: 'Limit build to a specific uv version (e.g. 0.9.5, 0.9).'
         type: string
         required: false
-      check_published_tags:
+      skip_published_tags:
         description: 'Skip tags already published to the registry. Disable to force rebuild of published tags.'
         type: boolean
         required: false
@@ -102,18 +102,39 @@ jobs:
         run: |
           uv sync --frozen
 
-      - name: Detect Python Devbox versions
+      - name: Detect Python versions
         env:
           PYTHON_VERSION: ${{ inputs.python_version }}
-          POETRY_VERSION: ${{ inputs.poetry_version }}
-          UV_VERSION: ${{ inputs.uv_version }}
-          CHECK_PUBLISHED_TAGS: ${{ inputs.check_published_tags }}
         run: |
-          uv run python ./scripts/detect-versions.py \
-            --python-version "${PYTHON_VERSION}" \
-            --poetry-version "${POETRY_VERSION}" \
-            --uv-version "${UV_VERSION}" \
-            --check-published-tags "${CHECK_PUBLISHED_TAGS:-true}"
+          # python detect-versions.py python --version PYTHON_VERSION
+          uv run python ./scripts/detect-versions.py python --version "${PYTHON_VERSION}"
+
+      - name: Detect Poetry versions
+        env:
+          POETRY_VERSION: ${{ inputs.poetry_version }}
+        run: |
+          # python detect-versions.py poetry --version POETRY_VERSION
+          uv run python ./scripts/detect-versions.py poetry --version "${POETRY_VERSION}"
+
+      - name: Detect uv versions
+        env:
+          UV_VERSION: ${{ inputs.uv_version }}
+        run: |
+          # python detect-versions.py uv --version UV_VERSION
+          uv run python ./scripts/detect-versions.py uv --version "${UV_VERSION}"
+
+      - name: Compute build matrix
+        env:
+          SKIP_PUBLISHED_TAGS: ${{ inputs.skip_published_tags }}
+        run: |
+          # python build-matrix.py PACKAGES --skip-published-tags SKIP_PUBLISHED_TAGS
+          rm -f ./dist/build-matrix.yml
+          uv run python ./scripts/build-matrix.py python \
+            --append --skip-published-tags "${SKIP_PUBLISHED_TAGS:-true}"
+          uv run python ./scripts/build-matrix.py python poetry \
+            --append --skip-published-tags "${SKIP_PUBLISHED_TAGS:-true}"
+          uv run python ./scripts/build-matrix.py python uv \
+            --append --skip-published-tags "${SKIP_PUBLISHED_TAGS:-true}"
 
       - name: Build matrix from detected versions
         run: |
@@ -127,7 +148,7 @@ jobs:
           # to job matrix configuration in JSON format.
           # Limit to 5 entries to avoid overwhelming CI.
           MATRIX_JSON="$(
-            yq -o=json e '.build_matrix' dist/versions.yml \
+            yq -o=json e '.build_matrix' ./dist/build-matrix.yml \
             | jq -c '{ include: .[0:5] }'
           )"
 
