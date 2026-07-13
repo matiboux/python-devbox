@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 import argparse
+import itertools
 import json
 import os
 import re
@@ -17,14 +18,19 @@ class BuildMatrix:
 
     def __init__(
         self,
+        packages: List[str],
         versions_path: str = 'dist/versions.yml',
         constraints_path: str = 'constraints.yml',
         output_path: str = 'dist/build-matrix.yml',
     ):
+        self.packages: List[str] = [ package.strip().lower() for package in packages ] if packages else []
         self.versions: Dict[str, Any] = self._load_yaml(versions_path)
         self.constraints: Dict[str, Any] = self._load_yaml(constraints_path)
         self.output_path: str = output_path
         self.build_matrix: List[Dict[str, str]] = []
+
+        if not self.packages:
+            raise ValueError('No packages specified for build matrix generation.')
 
     def _load_yaml(self, path: str) -> dict:
         """Load YAML configuration file."""
@@ -112,17 +118,31 @@ class BuildMatrix:
         self,
         skip_published_tags: bool = True,
     ) -> List[dict[str, str]]:
-        """Generate GitHub Actions matrix from detected versions."""
-        print('Generating build matrix...')
+        """Generate build matrix from detected versions for specified packages."""
+        print(f'Generating build matrix for packages: {", ".join(self.packages)}...')
 
-        detected_versions = self.versions.get('detected_versions', {})
-        python_versions = detected_versions.get('python', [])
-        poetry_versions = detected_versions.get('poetry', [])
-        uv_versions = detected_versions.get('uv', [])
+        all_detected_versions = self.versions.get('detected_versions', {})
+        all_base_variants = {
+            'python': ['', 'slim', 'alpine'],
+        }
 
-        if not python_versions:
-            print('Error: No Python versions detected', file=sys.stderr)
-            sys.exit(1)
+        base_package = self.packages[0]
+        other_packages = self.packages[1:]
+
+        detected_versions = {}
+        for package in self.packages:
+            package_versions = all_detected_versions.get(package, [])
+            if not package_versions:
+                print(f"Error: No detected versions found for package '{package}'.", file=sys.stderr)
+                sys.exit(1)
+            detected_versions[package] = package_versions
+
+        latest_versions = {
+            package: package_versions[0]
+            for package, package_versions in detected_versions.items()
+        }
+
+        base_variants = all_base_variants.get(base_package) or [None]
 
         if skip_published_tags:
             published_tags = set(self._fetch_published_tags())
@@ -131,86 +151,34 @@ class BuildMatrix:
             published_tags = set()
             print('Skipped published tags check.')
 
-        latest_python_version = python_versions[0] if python_versions else None
-        latest_poetry_version = poetry_versions[0] if poetry_versions else None
-        latest_uv_version = uv_versions[0] if uv_versions else None
-
         build_matrix = []
-        for python_version in python_versions:
-            python_tag_level = 'global' if python_version == latest_python_version else 'minor'
-            if f"{python_version}" not in published_tags:
-                build_matrix.append({
-                    'image_tag': f"{python_version}",
-                    'python_version': python_version,
-                    'python_image_variant': '',
-                    'python_tag_level': python_tag_level,
-                })
-                build_matrix.append({
-                    'image_tag': f"{python_version}-slim",
-                    'python_version': python_version,
-                    'python_image_variant': 'slim',
-                    'python_tag_level': python_tag_level,
-                })
-                build_matrix.append({
-                    'image_tag': f"{python_version}-alpine",
-                    'python_version': python_version,
-                    'python_image_variant': 'alpine',
-                    'python_tag_level': python_tag_level,
-                })
-            for poetry_version in poetry_versions:
-                poetry_tag_level = 'global' if poetry_version == latest_poetry_version else 'minor'
-                if f"{python_version}-poetry{poetry_version}" not in published_tags:
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-poetry{poetry_version}",
-                        'python_version': python_version,
-                        'python_image_variant': '',
-                        'poetry_version': poetry_version,
-                        'python_tag_level': python_tag_level,
-                        'poetry_tag_level': poetry_tag_level,
-                    })
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-slim-poetry{poetry_version}",
-                        'python_version': python_version,
-                        'python_image_variant': 'slim',
-                        'poetry_version': poetry_version,
-                        'python_tag_level': python_tag_level,
-                        'poetry_tag_level': poetry_tag_level,
-                    })
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-alpine-poetry{poetry_version}",
-                        'python_version': python_version,
-                        'python_image_variant': 'alpine',
-                        'poetry_version': poetry_version,
-                        'python_tag_level': python_tag_level,
-                        'poetry_tag_level': poetry_tag_level,
-                    })
-            for uv_version in uv_versions:
-                uv_tag_level = 'global' if uv_version == latest_uv_version else 'minor'
-                if f"{python_version}-uv{uv_version}" not in published_tags:
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-uv{uv_version}",
-                        'python_version': python_version,
-                        'python_image_variant': '',
-                        'uv_version': uv_version,
-                        'python_tag_level': python_tag_level,
-                        'uv_tag_level': uv_tag_level,
-                    })
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-slim-uv{uv_version}",
-                        'python_version': python_version,
-                        'python_image_variant': 'slim',
-                        'uv_version': uv_version,
-                        'python_tag_level': python_tag_level,
-                        'uv_tag_level': uv_tag_level,
-                    })
-                    build_matrix.append({
-                        'image_tag': f"{python_version}-alpine-uv{uv_version}",
-                        'python_version': python_version,
-                        'python_image_variant': 'alpine',
-                        'uv_version': uv_version,
-                        'python_tag_level': python_tag_level,
-                        'uv_tag_level': uv_tag_level,
-                    })
+
+        for versions_combo in itertools.product(*detected_versions.values()):
+            packages_version = dict(zip(self.packages, versions_combo))
+
+            for variant in base_variants:
+
+                tag_parts = [packages_version[base_package]]
+                if variant:
+                    tag_parts.append(variant)
+                for package in other_packages:
+                    tag_parts.append(f"{package}{packages_version[package]}")
+                image_tag = '-'.join(tag_parts)
+
+                if image_tag not in published_tags:
+                    entry = {
+                        'image_tag': image_tag,
+                        f"{base_package}_version": packages_version[base_package],
+                        f"{base_package}_tag_level": 'global' if packages_version[base_package] == latest_versions[base_package] else 'minor',
+                    }
+                    if variant is not None:
+                        entry[f"{base_package}_image_variant"] = variant
+
+                    for package in other_packages:
+                        entry[f'{package}_version'] = packages_version[package]
+                        entry[f'{package}_tag_level'] = 'global' if packages_version[package] == latest_versions[package] else 'minor'
+
+                    build_matrix.append(entry)
 
         print(f"Generated {len(build_matrix)} build matrix entries.")
         self.build_matrix = build_matrix
@@ -247,6 +215,12 @@ def parse_args() -> argparse.Namespace:
         description='Generate build matrix from detected versions.',
     )
     parser.add_argument(
+        'packages',
+        nargs='*',
+        default=[],
+        help='Packages to include in build matrix. If empty, all are included.',
+    )
+    parser.add_argument(
         '--skip-published-tags',
         action='store_true',
         default=True,
@@ -262,7 +236,9 @@ def main():
 
     args = parse_args()
 
-    matrix_builder = BuildMatrix()
+    matrix_builder = BuildMatrix(
+        packages=args.packages,
+    )
 
     # Generate build matrix
     matrix_builder.generate_build_matrix(
