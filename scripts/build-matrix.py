@@ -236,9 +236,13 @@ def main():
 
     args = parse_args()
 
-    matrix_builder = BuildMatrix(
-        packages=args.packages,
-    )
+    try:
+        matrix_builder = BuildMatrix(
+            packages=args.packages,
+        )
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # Generate build matrix
     matrix_builder.generate_build_matrix(
