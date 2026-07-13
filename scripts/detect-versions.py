@@ -111,7 +111,10 @@ class DetectVersions:
         print(f"Detected '{self.package_name}' versions: {self.detected_versions}")
         return self.detected_versions
 
-    def _detect_python(self, past_detected_versions: List[str]) -> List[str]:
+    def _detect_python(
+        self,
+        past_detected_versions: List[str] = [],
+    ) -> List[str]:
         """Detect Python versions from Docker Hub."""
 
         min_version = self.constraints[self.package_name]['min_version']
@@ -179,7 +182,10 @@ class DetectVersions:
 
         return self._sort_versions(minor_versions)
 
-    def _detect_pip_package(self, past_detected_versions: List[str]) -> List[str]:
+    def _detect_pip_package(
+        self,
+        past_detected_versions: List[str] = [],
+    ) -> List[str]:
         """Detect package versions from PyPI using pip."""
 
         min_version = self.constraints[self.package_name]['min_version']
