@@ -211,6 +211,13 @@ class BuildMatrix:
         print(f"Build matrix saved to {self.output_path}.")
 
 
+def _parse_bool(value: str) -> bool:
+    """Parse string to boolean."""
+    if isinstance(value, bool):
+        return value
+    return value.lower() in ('true', '1', 'yes', 'on')
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description='Generate build matrix from detected versions.',
@@ -232,7 +239,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         '--skip-published-tags',
-        action='store_true',
+        type=_parse_bool,
         default=True,
         help=(
             'Skip tags already published to the registry (true/false). '
