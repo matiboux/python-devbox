@@ -1,6 +1,6 @@
 #!/bin/sh
 
-UV_VERSION=${1:-latest}
+UV_VERSION_INPUT=${1:-latest}
 
 # ---
 
@@ -21,7 +21,7 @@ export UV_NO_MODIFY_PATH='1'
 export UV_UNMANAGED_INSTALL='/usr/local/bin'
 
 # Try to install uv with the specified version
-UV_VERSION_FULL="$(echo "${UV_VERSION}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+UV_VERSION_FULL="$(echo "${UV_VERSION_INPUT}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)"
 if [ -n "${UV_VERSION_FULL}" ]; then
     curl -LsSf "https://astral.sh/uv/${UV_VERSION_FULL}/install.sh" -o "${UV_INSTALLER_FILE}"
     if [ $? -ne 0 ]; then
@@ -50,7 +50,7 @@ get_uv_version() {
 }
 
 # Install uv with the inferred version
-UV_VERSION_INFERRED="$(get_uv_version "${UV_VERSION}")"
+UV_VERSION_INFERRED="$(get_uv_version "${UV_VERSION_INPUT}")"
 if [ -n "${UV_VERSION_INFERRED}" ]; then
     curl -LsSf "https://astral.sh/uv/${UV_VERSION_INFERRED}/install.sh" -o "${UV_INSTALLER_FILE}"
     if [ $? -ne 0 ]; then
@@ -60,5 +60,5 @@ if [ -n "${UV_VERSION_INFERRED}" ]; then
     install_uv_and_exit
 fi
 
-echo "Failed to find a valid uv version for '${UV_VERSION}'." >&2
+echo "Failed to find a valid uv version for '${UV_VERSION_INPUT}'." >&2
 exit 1
