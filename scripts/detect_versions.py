@@ -184,17 +184,18 @@ class DetectVersions:
                     if not tag_name or not re.match(r'^\d+(\.\d+)*$', tag_name):
                         continue
                     version_tuple = self._get_version_tuple(tag_name)
+                    version_major = f"{version_tuple[0]}"
                     version_minor = f"{version_tuple[0]}.{version_tuple[1]}"
                     version_full = f"{version_tuple[0]}.{version_tuple[1]}.{version_tuple[2]}"
                     if version_filter_tuple:
                         if not self._version_matches_filter(version_tuple, version_filter_tuple):
                             continue
-                        if version_minor in skip_versions or version_full in skip_versions:
+                        if version_major in skip_versions or version_minor in skip_versions or version_full in skip_versions:
                             continue
                     if ((
                         version_tuple < min_version_tuple and
-                        version_minor not in extra_versions and version_full not in extra_versions
-                    ) or version_minor in skip_versions or version_full in skip_versions):
+                        version_major not in extra_versions and version_minor not in extra_versions and version_full not in extra_versions
+                    ) or version_major in skip_versions or version_minor in skip_versions or version_full in skip_versions):
                         continue
                     found_version = True
                     if version_minor in minor_versions:
@@ -282,17 +283,18 @@ class DetectVersions:
                         if not version or not re.match(r'^\d+(\.\d+)*$', version):
                             continue
                         version_tuple = self._get_version_tuple(version)
+                        version_major = f"{version_tuple[0]}"
                         version_minor = f"{version_tuple[0]}.{version_tuple[1]}"
                         version_full = f"{version_tuple[0]}.{version_tuple[1]}.{version_tuple[2]}"
                         if version_filter_tuple:
                             if not self._version_matches_filter(version_tuple, version_filter_tuple):
                                 continue
-                            if version_minor in skip_versions or version_full in skip_versions:
+                            if version_major in skip_versions or version_minor in skip_versions or version_full in skip_versions:
                                 continue
                         if ((
                             version_tuple < min_version_tuple and
-                            version_minor not in extra_versions and version_full not in extra_versions
-                        ) or version_minor in skip_versions or version_full in skip_versions):
+                            version_major not in extra_versions and version_minor not in extra_versions and version_full not in extra_versions
+                        ) or version_major in skip_versions or version_minor in skip_versions or version_full in skip_versions):
                             continue
                         if version_minor in minor_versions:
                             existing_full = minor_versions[version_minor]
@@ -382,17 +384,18 @@ class DetectVersions:
                     if not tag_name or not re.match(r'^\d+(\.\d+)*$', tag_name):
                         continue
                     version_tuple = self._get_version_tuple(tag_name)
+                    version_major = f"{version_tuple[0]}"
                     version_minor = f"{version_tuple[0]}.{version_tuple[1]}"
                     version_full = f"{version_tuple[0]}.{version_tuple[1]}.{version_tuple[2]}"
                     if version_filter_tuple:
                         if not self._version_matches_filter(version_tuple, version_filter_tuple):
                             continue
-                        if version_minor in skip_versions or version_full in skip_versions:
+                        if version_major in skip_versions or version_minor in skip_versions or version_full in skip_versions:
                             continue
                     if ((
                         version_tuple < min_version_tuple and
-                        version_minor not in extra_versions and version_full not in extra_versions
-                    ) or version_minor in skip_versions or version_full in skip_versions):
+                        version_major not in extra_versions and version_minor not in extra_versions and version_full not in extra_versions
+                    ) or version_major in skip_versions or version_minor in skip_versions or version_full in skip_versions):
                         continue
                     found_version = True
                     if version_minor in minor_versions:
