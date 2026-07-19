@@ -28,13 +28,11 @@ class DetectVersions:
         self.constraints_path: str = constraints_path
         self.output_path: str = output_path
         self.version_filter: str | None = version_filter
-        self.detected_versions: List[str] = []
-        self.latest_version: str | None = None
 
         try:
             self.constraints: Dict[str, Any] = self._load_yaml(constraints_path)
         except FileNotFoundError:
-            print(f"Warning: Constraints file '{constraints_path}' not found", file=sys.stderr)
+            print(f"Warning: Constraints file '{constraints_path}' not found.", file=sys.stderr)
             self.constraints = {}
 
         self._detectors = {
@@ -47,6 +45,8 @@ class DetectVersions:
         if self.package_name not in self._detectors:
             raise ValueError(f"Invalid package name '{self.package_name}'.")
 
+        self.detected_versions: List[str] = []
+        self.latest_version: str | None = None
 
     def _load_yaml(self, path: str) -> dict:
         """Load YAML configuration file."""
