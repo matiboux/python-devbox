@@ -1,3 +1,3 @@
-# Python Devbox images
+# Devbox images
 
-Python development Docker images for development and testing environments, automatically built and updated following upstream releases.
+Docker images for development and testing environments, automatically built and updated following upstream releases, ready to use in CI/CD pipelines, dev containers, and `docker run` local commands.
