@@ -24,22 +24,29 @@ class BuildMatrix:
         output_path: str = 'dist/build-matrix.yml',
     ):
         self.packages: List[str] = [ package.strip().lower() for package in packages ] if packages else []
-        self.versions: Dict[str, Any] = self._load_yaml(versions_path)
-        self.constraints: Dict[str, Any] = self._load_yaml(constraints_path)
+        self.versions_path: str = versions_path
+        self.constraints_path: str = constraints_path
         self.output_path: str = output_path
-        self.build_matrix: List[Dict[str, str]] = []
 
         if not self.packages:
             raise ValueError('No packages specified for build matrix generation.')
+
+        self.versions: Dict[str, Any] = self._load_yaml(versions_path)
+        try:
+            self.constraints: Dict[str, Any] = self._load_yaml(constraints_path)
+        except FileNotFoundError:
+            print(f"Warning: Constraints file '{constraints_path}' not found.", file=sys.stderr)
+            self.constraints = {}
+
+        self.build_matrix: List[Dict[str, str]] = []
 
     def _load_yaml(self, path: str) -> dict:
         """Load YAML configuration file."""
         try:
             with open(path, 'r') as f:
                 return yaml.safe_load(f) or {}
-        except FileNotFoundError:
-            print(f"Error: {path} not found", file=sys.stderr)
-            sys.exit(1)
+        except FileNotFoundError as err:
+            raise FileNotFoundError(f"Error: {path} not found") from err
 
     def _fetch_json(self, url: str, timeout: int = 10) -> dict:
         """Fetch JSON from URL with error handling."""
@@ -65,9 +72,9 @@ class BuildMatrix:
 
         published_tags: List[str] = []
 
-        min_python_version = self.constraints['python']['min_version']
-        min_poetry_version = self.constraints['poetry']['min_version']
-        min_uv_version = self.constraints['uv']['min_version']
+        min_python_version = self.constraints.get('python', {}).get('min_version', '0.0.0')
+        min_poetry_version = self.constraints.get('poetry', {}).get('min_version', '0.0.0')
+        min_uv_version = self.constraints.get('uv', {}).get('min_version', '0.0.0')
         min_python_version_tuple = self._get_version_tuple(min_python_version)
         min_poetry_version_tuple = self._get_version_tuple(min_poetry_version)
         min_uv_version_tuple = self._get_version_tuple(min_uv_version)
