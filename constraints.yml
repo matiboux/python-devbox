@@ -24,6 +24,14 @@ uv:
   # Specific uv versions to skip
   skip_versions: []
 
+node:
+  # Minimum nvm version to support
+  min_version: "26"
+  # Additional legacy nvm versions to include
+  extra_versions: ["22", "24"]
+  # Specific nvm versions to skip
+  skip_versions: []
+
 nvm:
   # Minimum nvm version to support
   min_version: "0.40"
