@@ -36,10 +36,11 @@ class DetectVersions:
             self.constraints = {}
 
         self._detectors = {
-            'python': self._detect_python,
+            'python': self._detect_docker_image,
+            'node': self._detect_docker_image,
             'poetry': self._detect_pip_package,
             'uv': self._detect_pip_package,
-            'nvm': self._detect_github_releases,
+            'nvm': self._detect_github_repo,
         }
 
         if self.package_name not in self._detectors:
@@ -124,11 +125,11 @@ class DetectVersions:
 
         return self.detected_versions
 
-    def _detect_python(
+    def _detect_docker_image(
         self,
         past_detected_versions: List[str] = [],
     ) -> List[str]:
-        """Detect Python versions from Docker Hub."""
+        """Detect package versions from Docker Hub image tags."""
 
         constraints_incomplete = False
 
@@ -149,11 +150,24 @@ class DetectVersions:
         min_version = package_constraints.get('min_version', '0.0.0')
         min_version_tuple = self._get_version_tuple(min_version)
         extra_versions = set(package_constraints.get('extra_versions', []))
-        skip_versions = package_constraints.get('skip_tags', [])
+        skip_versions = package_constraints.get('skip_versions', [])
         version_filter_tuple = self._get_version_filter_tuple(self.version_filter)
         minor_versions = {}
 
-        url = 'https://hub.docker.com/v2/namespaces/library/repositories/python/tags?page_size=100'
+        docker_image = package_constraints.get('docker_image')
+        if not docker_image:
+            known_repos = {
+                'python': 'library/python',
+                'node': 'library/node',
+            }
+            docker_image = known_repos.get(self.package_name)
+            if not docker_image:
+                print(f"Warning: No 'docker_image' specified in constraints for {self.package_name}", file=sys.stderr)
+                return past_detected_versions
+
+        docker_parts = docker_image.split('/')
+        url = f"https://hub.docker.com/v2/namespaces/{docker_parts[0]}/repositories/{docker_parts[1]}/tags?page_size=100"
+
         while True:
             data = self._fetch_json(url)
             if not data:
@@ -241,7 +255,7 @@ class DetectVersions:
         min_version = package_constraints.get('min_version', '0.0.0')
         min_version_tuple = self._get_version_tuple(min_version)
         extra_versions = set(package_constraints.get('extra_versions', []))
-        skip_versions = package_constraints.get('skip_tags', [])
+        skip_versions = package_constraints.get('skip_versions', [])
         version_filter_tuple = self._get_version_filter_tuple(self.version_filter)
         minor_versions = {}
 
@@ -307,11 +321,11 @@ class DetectVersions:
 
         return self._sort_versions(minor_versions)
 
-    def _detect_github_releases(
+    def _detect_github_repo(
         self,
         past_detected_versions: List[str] = [],
     ) -> List[str]:
-        """Detect package versions from GitHub releases."""
+        """Detect package versions from GitHub repository tags."""
 
         constraints_incomplete = False
 
@@ -332,7 +346,7 @@ class DetectVersions:
         min_version = package_constraints.get('min_version', '0.0.0')
         min_version_tuple = self._get_version_tuple(min_version)
         extra_versions = set(package_constraints.get('extra_versions', []))
-        skip_versions = package_constraints.get('skip_tags', [])
+        skip_versions = package_constraints.get('skip_versions', [])
         version_filter_tuple = self._get_version_filter_tuple(self.version_filter)
         minor_versions = {}
 
