@@ -35,7 +35,7 @@ if [ "${PACKAGE_MANAGER_NAME}" = 'apk' ]; then
 
 	# Create group 'sudo' if it doesn't exist
 	if ! getent group sudo > /dev/null 2>&1; then
-		addgroup sudo
+		addgroup -g 27 sudo
 	fi
 
 elif [ "${PACKAGE_MANAGER_NAME}" = 'apt-get' ]; then
