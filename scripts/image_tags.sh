@@ -1,17 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 
-# Tag Docker image with specified tags and versions
+# Tag Devbox Python Docker image with specified versions.
 
-# Inputs:
 COMPACT_OUTPUT="${COMPACT_OUTPUT:-false}"
+
 PYTHON_VERSION="${PYTHON_VERSION:-3.14.6}"
 PYTHON_IMAGE_VARIANT="${PYTHON_IMAGE_VARIANT:-}" # [empty], slim, alpine
 POETRY_VERSION="${POETRY_VERSION:-}"
 UV_VERSION="${UV_VERSION:-}"
+NVM_VERSION="${NVM_VERSION:-}"
+NODE_VERSION="${NODE_VERSION:-}"
+
 PYTHON_TAG_LEVEL="${PYTHON_TAG_LEVEL:-patch}" # global, major, minor, patch
 POETRY_TAG_LEVEL="${POETRY_TAG_LEVEL:-patch}" # global, major, minor, patch
 UV_TAG_LEVEL="${UV_TAG_LEVEL:-patch}" # global, major, minor, patch
+NVM_TAG_LEVEL="${NVM_TAG_LEVEL:-patch}" # global, major, minor, patch
+NODE_TAG_LEVEL="${NODE_TAG_LEVEL:-patch}" # global, major, minor, patch
 
 # Arguments:
 [ "$#" -gt 0 ] && ([ "$1" = '--compact' ] || [ "$1" = '-c' ]) && COMPACT_OUTPUT='true'
@@ -29,6 +34,8 @@ validate_tag_level() {
 PYTHON_TAG_LEVEL="$(validate_tag_level "${PYTHON_TAG_LEVEL}")"
 POETRY_TAG_LEVEL="$(validate_tag_level "${POETRY_TAG_LEVEL}")"
 UV_TAG_LEVEL="$(validate_tag_level "${UV_TAG_LEVEL}")"
+NVM_TAG_LEVEL="$(validate_tag_level "${NVM_TAG_LEVEL}")"
+NODE_TAG_LEVEL="$(validate_tag_level "${NODE_TAG_LEVEL}")"
 
 # Given a version and a tag level, set an output array `component_options`
 # with the list of version-string options for that component.
@@ -79,52 +86,83 @@ get_component_options "${PYTHON_VERSION}" "${PYTHON_TAG_LEVEL}"
 python_component_options=("${component_options[@]}")
 echo "Python component options: ${python_component_options[*]}" >&2
 
+# Compute Node component options
+node_component_options=()
+if [ -n "$NODE_VERSION" ]; then
+	component_options=()
+	get_component_options "${NODE_VERSION}" "${NODE_TAG_LEVEL}"
+	for c in "${component_options[@]}"; do
+		node_component_options+=("node${c}")
+	done
+else
+	node_component_options=('')
+fi
+echo "Node component options: ${node_component_options[*]}" >&2
+
 # Compute Poetry component options
 poetry_component_options=()
 if [ -n "$POETRY_VERSION" ]; then
-  component_options=()
-  get_component_options "${POETRY_VERSION}" "${POETRY_TAG_LEVEL}"
-  for c in "${component_options[@]}"; do
-	poetry_component_options+=("poetry${c}")
-  done
+	component_options=()
+	get_component_options "${POETRY_VERSION}" "${POETRY_TAG_LEVEL}"
+	for c in "${component_options[@]}"; do
+		poetry_component_options+=("poetry${c}")
+	done
 else
-  poetry_component_options=('')
+	poetry_component_options=('')
 fi
 echo "Poetry component options: ${poetry_component_options[*]}" >&2
 
 # Compute uv component options
 uv_component_options=()
 if [ -n "$UV_VERSION" ]; then
-  component_options=()
-  get_component_options "${UV_VERSION}" "${UV_TAG_LEVEL}"
-  for c in "${component_options[@]}"; do
-	uv_component_options+=("uv${c}")
-  done
+	component_options=()
+	get_component_options "${UV_VERSION}" "${UV_TAG_LEVEL}"
+	for c in "${component_options[@]}"; do
+		uv_component_options+=("uv${c}")
+	done
 else
-  uv_component_options=('')
+	uv_component_options=('')
 fi
 echo "uv component options: ${uv_component_options[*]}" >&2
+
+# Compute nvm component options
+nvm_component_options=()
+if [ -n "$NVM_VERSION" ]; then
+	component_options=()
+	get_component_options "${NVM_VERSION}" "${NVM_TAG_LEVEL}"
+	for c in "${component_options[@]}"; do
+		nvm_component_options+=("nvm${c}")
+	done
+else
+	nvm_component_options=('')
+fi
+echo "nvm component options: ${nvm_component_options[*]}" >&2
 
 # Build list of image tags combinations
 IMAGE_TAGS=()
 for python_component in "${python_component_options[@]}"; do
-  for poetry_component in "${poetry_component_options[@]}"; do
-	for uv_component in "${uv_component_options[@]}"; do
-	  tag_pieces=()
-	  [ -n "${python_component}" ] && tag_pieces+=("${python_component}")
-	  [ -n "${PYTHON_IMAGE_VARIANT}" ] && tag_pieces+=("${PYTHON_IMAGE_VARIANT}")
-	  [ -n "${poetry_component}" ] && tag_pieces+=("${poetry_component}")
-	  [ -n "${uv_component}" ] && tag_pieces+=("${uv_component}")
+	for node_component in "${node_component_options[@]}"; do
+		for poetry_component in "${poetry_component_options[@]}"; do
+			for uv_component in "${uv_component_options[@]}"; do
+				for nvm_component in "${nvm_component_options[@]}"; do
+					tag_pieces=()
+					[ -n "${python_component}" ] && tag_pieces+=("${python_component}")
+					[ -n "${PYTHON_IMAGE_VARIANT}" ] && tag_pieces+=("${PYTHON_IMAGE_VARIANT}")
+					[ -n "${poetry_component}" ] && tag_pieces+=("${poetry_component}")
+					[ -n "${uv_component}" ] && tag_pieces+=("${uv_component}")
+					[ -n "${nvm_component}" ] && tag_pieces+=("${nvm_component}")
 
-	  if [ "${#tag_pieces[@]}" -eq 0 ]; then
-		image_tag='latest'
-	  else
-		image_tag="$(IFS='-'; echo "${tag_pieces[*]}")"
-	  fi
+					if [ "${#tag_pieces[@]}" -eq 0 ]; then
+						image_tag='latest'
+					else
+						image_tag="$(IFS='-'; echo "${tag_pieces[*]}")"
+					fi
 
-	  IMAGE_TAGS+=("${image_tag}")
+					IMAGE_TAGS+=("${image_tag}")
+				done
+			done
+		done
 	done
-  done
 done
 
 if [ "$COMPACT_OUTPUT" = 'true' ]; then
