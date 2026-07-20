@@ -46,8 +46,9 @@ class ImageTagGenerator:
         return 'patch'
 
     def _get_component_options(self, version: str, level: str) -> List[str]:
+
         if not version:
-            return []
+            return ['']
 
         version_parts = version.split('.')
         major = version_parts[0]
@@ -72,6 +73,7 @@ class ImageTagGenerator:
         return options
 
     def _get_prefixed_options(self, prefix: str, version: str, tag_level: str) -> List[str]:
+
         if not version:
             return ['']
 
@@ -79,6 +81,7 @@ class ImageTagGenerator:
         return [f"{prefix}{opt}" for opt in options]
 
     def generate_tags(self) -> List[str]:
+
         python_options = self._get_component_options(self.python_version, self.python_tag_level)
         print(f"Python component options: {python_options}", file=sys.stderr)
 
@@ -195,11 +198,11 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv('NODE_TAG_LEVEL', 'patch'),
         help='Node tag level: global, major, minor, or patch (default: patch)',
     )
-
     return parser.parse_args()
 
 
 def main():
+
     args = parse_args()
 
     generator = ImageTagGenerator(
