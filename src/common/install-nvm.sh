@@ -36,12 +36,29 @@ fi
 
 get_nvm_version() {
     local version="$1"
+    local http_code
+    local response
+
     if [ -z "${version}" ] || [ "${version}" = 'latest' ]; then
-        curl -sSL "https://api.github.com/repos/nvm-sh/nvm/releases/latest" \
+        response=$(curl -sSL -w "\n%{http_code}" "https://api.github.com/repos/nvm-sh/nvm/releases/latest")
+        http_code=$(echo "${response}" | tail -n1)
+        response=$(echo "${response}" | sed '$d')
+        if [ "${http_code}" = "403" ] || [ "${http_code}" = "429" ]; then
+            echo "GitHub API rate limit exceeded. Please try again later or use a personal access token." >&2
+            return 1
+        fi
+        echo "${response}" \
             | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' \
             | sed 's/^v//'
     else
-        curl -sSL "https://api.github.com/repos/nvm-sh/nvm/git/matching-refs/tags/v${version}" \
+        response=$(curl -sSL -w "\n%{http_code}" "https://api.github.com/repos/nvm-sh/nvm/git/matching-refs/tags/v${version}")
+        http_code=$(echo "${response}" | tail -n1)
+        response=$(echo "${response}" | sed '$d')
+        if [ "${http_code}" = "403" ] || [ "${http_code}" = "429" ]; then
+            echo "GitHub API rate limit exceeded. Please try again later or use a personal access token." >&2
+            return 1
+        fi
+        echo "${response}" \
             | sed -n 's/.*"ref": "\([^"]*\)".*/\1/p' \
             | sed 's|refs/tags/v||' \
             | sort -V \
