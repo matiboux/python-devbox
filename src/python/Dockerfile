@@ -60,6 +60,6 @@ RUN --mount=type=bind,source=./src/common,target=/tmp/devbox/common \
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}
 
-COPY --link --chmod=755 ./src/common/entrypoint-shell.sh /usr/local/bin/devbox-entrypoint
-ENTRYPOINT ["/usr/local/bin/devbox-entrypoint"]
+COPY --link --chmod=755 ./docker-entrypoint.sh /usr/local/bin/docker-entrypoint
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]
 CMD []
