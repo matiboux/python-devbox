@@ -97,6 +97,23 @@ if [ $? -ne 0 ]; then
 	echo "Failed to install nvm." >&2
 fi
 rm -f "${NVM_INSTALLER_FILE}"
+
+# Create user directories
+while IFS= read -r dir; do
+	mkdir -p "${NVM_DIR}/${dir}"
+	chmod -R 777 "${NVM_DIR}/${dir}"
+done <<EOF
+.cache
+alias
+versions
+EOF
+
+# Create system-wide NVM initialization in bash.bashrc so all bash shells source it
+cat <<'EOF' >> /etc/bash.bashrc
+export NVM_DIR="${NVM_DIR:-/opt/nvm}"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+EOF
+
 echo "Installed nvm version ${NVM_VERSION} to ${NVM_DIR}."
 
 if [ "${BASH_INSTALLED}" = 'true' ]; then
@@ -111,15 +128,3 @@ if [ "${BASH_INSTALLED}" = 'true' ]; then
 	fi
 	echo "Uninstalled bash after installing nvm." >&2
 fi
-
-# Create shell script to run nvm commands from any shell
-cat <<'EOF' > /usr/local/bin/nvm
-#!/bin/sh
-export NVM_DIR="${NVM_DIR:-/opt/nvm}"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-nvm "$@"
-EOF
-chmod a+x /usr/local/bin/nvm || {
-	echo "Failed to make /usr/local/bin/nvm executable." >&2
-}
-echo "Created /usr/local/bin/nvm script to run nvm commands from any shell."
