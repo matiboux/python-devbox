@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+from itertools import product
 from typing import List, Tuple
 
 
@@ -94,32 +95,30 @@ class ImageTagGenerator:
         print(f"nvm component options: {nvm_options}", file=sys.stderr)
 
         tags: List[str] = []
-        for python_comp in python_options:
-            for node_comp in node_options:
-                for poetry_comp in poetry_options:
-                    for uv_comp in uv_options:
-                        for nvm_comp in nvm_options:
-                            tag_pieces: List[str] = []
+        for python_comp, node_comp, poetry_comp, uv_comp, nvm_comp in product(
+            python_options, node_options, poetry_options, uv_options, nvm_options
+        ):
+            tag_pieces: List[str] = []
 
-                            if python_comp:
-                                tag_pieces.append(python_comp)
-                            if self.python_image_variant:
-                                tag_pieces.append(self.python_image_variant)
-                            if node_comp:
-                                tag_pieces.append(node_comp)
-                            if poetry_comp:
-                                tag_pieces.append(poetry_comp)
-                            if uv_comp:
-                                tag_pieces.append(uv_comp)
-                            if nvm_comp:
-                                tag_pieces.append(nvm_comp)
+            if python_comp:
+                tag_pieces.append(python_comp)
+            if self.python_image_variant:
+                tag_pieces.append(self.python_image_variant)
+            if node_comp:
+                tag_pieces.append(node_comp)
+            if poetry_comp:
+                tag_pieces.append(poetry_comp)
+            if uv_comp:
+                tag_pieces.append(uv_comp)
+            if nvm_comp:
+                tag_pieces.append(nvm_comp)
 
-                            if not tag_pieces:
-                                image_tag = 'latest'
-                            else:
-                                image_tag = '-'.join(tag_pieces)
+            if not tag_pieces:
+                image_tag = 'latest'
+            else:
+                image_tag = '-'.join(tag_pieces)
 
-                            tags.append(image_tag)
+            tags.append(image_tag)
 
         self.image_tags = tags
         return tags
