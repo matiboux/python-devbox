@@ -56,5 +56,6 @@ RUN --mount=type=bind,source=./src/common,target=/tmp/devbox/common \
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}
 
-ENTRYPOINT ["/bin/bash"]
+COPY --link --chmod=755 ./src/common/entrypoint-shell.sh /usr/local/bin/devbox-entrypoint
+ENTRYPOINT ["/usr/local/bin/devbox-entrypoint"]
 CMD []
