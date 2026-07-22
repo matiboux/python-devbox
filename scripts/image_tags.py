@@ -84,7 +84,6 @@ class ImageTagGenerator:
             else:
                 options = self._get_prefixed_options(comp_name, comp_version, comp_tag_level)
             component_options_list.append(options)
-            print(f"{comp_name.capitalize() or 'Unlabeled'} component options: {options}", file=sys.stderr)
 
         tags: List[str] = []
         for component_values in product(*component_options_list):
@@ -106,7 +105,7 @@ class ImageTagGenerator:
         self.image_tags = tags
         return tags
 
-    def output_tags(self) -> None:
+    def print_tags(self) -> None:
         if self.compact_output:
             print(','.join(self.image_tags))
         else:
@@ -153,7 +152,7 @@ def main():
     )
 
     generator.generate_tags()
-    generator.output_tags()
+    generator.print_tags()
 
 
 if __name__ == "__main__":
