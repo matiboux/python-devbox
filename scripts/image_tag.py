@@ -7,7 +7,7 @@ from itertools import product
 from typing import List, Sequence, Tuple
 
 
-class ImageTagsGenerator:
+class ImageTagGenerator:
 
     def __init__(
         self,
@@ -149,7 +149,7 @@ def main():
         else:
             components.append((comp_name, version_tag))
 
-    generator = ImageTagsGenerator(
+    generator = ImageTagGenerator(
         components=components,
     )
 

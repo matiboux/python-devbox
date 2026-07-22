@@ -9,7 +9,7 @@ import sys
 
 import yaml
 
-from scripts.image_tags import ImageTagsGenerator
+from scripts.image_tag import ImageTagGenerator
 
 
 class BuildMatrix:
@@ -97,7 +97,7 @@ class BuildMatrix:
 
             for base_variant in base_variants:
 
-                image_tag_generator = ImageTagsGenerator(
+                image_tag_generator = ImageTagGenerator(
                     components=[
                         (base_package, packages_version[base_package]),
                         ('', base_variant or ''),
