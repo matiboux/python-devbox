@@ -115,7 +115,8 @@ env:
   CUSTOM_CR_ENABLED: ${{ vars.CUSTOM_CR_ENABLED == 'true' }}
   IMAGES_PREFIX: ${{ vars.IMAGES_PREFIX }}
   IMAGES_SUFFIX: ''
-  SERVICE_DIR: .
+  CONTEXT_DIR: .
+  DOCKERFILE_PATH: ./src/python/Dockerfile
   BUILD_CONTEXTS: ''
 
 jobs:
@@ -627,8 +628,8 @@ jobs:
           DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           tags: ${{ env.PLATFORM_IMAGE_REFS }}
-          file: ${{ env.SERVICE_DIR }}/Dockerfile
-          context: ${{ env.SERVICE_DIR }}
+          file: ${{ env.CONTEXT_DIR }}/${{ env.DOCKERFILE_PATH }}
+          context: ${{ env.CONTEXT_DIR }}
           build-contexts: ${{ env.BUILD_CONTEXTS }}
           target: python_devbox
           build-args: |
