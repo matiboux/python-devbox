@@ -110,8 +110,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         'image-name',
-        nargs='?',
-        default='python-devbox',
         help='Package name to fetch published tags for (defaults to \'python-devbox\').',
     )
     parser.add_argument(
@@ -151,7 +149,7 @@ def main():
 
     try:
         fetcher = FetchPublishedTags(
-            image_name='python-devbox',
+            image_name=args.image_name,
             github_read_token=args.github_read_token,
             ignore_tags_older_than=args.ignore_tags_older_than,
         )
