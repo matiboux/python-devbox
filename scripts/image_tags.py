@@ -4,38 +4,33 @@ import argparse
 import os
 import sys
 from itertools import product
-from typing import List
+from typing import List, Sequence, Tuple
 
 
 class ImageTagGenerator:
 
     def __init__(
         self,
-        python_version: str = '3.14.6',
+        components: Sequence[Tuple[str, str] | Tuple[str, str, str]],
         python_image_variant: str = '',
-        poetry_version: str = '',
-        uv_version: str = '',
-        nvm_version: str = '',
-        node_version: str = '',
-        python_tag_level: str = 'patch',
-        poetry_tag_level: str = 'patch',
-        uv_tag_level: str = 'patch',
-        nvm_tag_level: str = 'patch',
-        node_tag_level: str = 'patch',
         compact_output: bool = False,
     ):
-        self.python_version = python_version
-        self.python_image_variant = python_image_variant
-        self.poetry_version = poetry_version
-        self.uv_version = uv_version
-        self.nvm_version = nvm_version
-        self.node_version = node_version
-        self.python_tag_level = self._validate_tag_level(python_tag_level)
-        self.poetry_tag_level = self._validate_tag_level(poetry_tag_level)
-        self.uv_tag_level = self._validate_tag_level(uv_tag_level)
-        self.nvm_tag_level = self._validate_tag_level(nvm_tag_level)
-        self.node_tag_level = self._validate_tag_level(node_tag_level)
-        self.compact_output = compact_output
+        """
+        Initialize the ImageTagGenerator with component versions and tag levels.
+        :param components: List of tuples containing (component_name, version, tag_level)
+        :param python_image_variant: Python image variant: empty, slim, or alpine
+        :param compact_output: If True, output tags as comma-separated values on a single line
+        """
+        self.components: List[Tuple[str, str, str]] = [
+            (
+                (comp[0], comp[1], self._validate_tag_level(comp[2]))
+                if len(comp) >= 3 else
+                (comp[0], comp[1], 'patch')
+            )
+            for comp in components
+        ]
+        self.python_image_variant: str = python_image_variant
+        self.compact_output: bool = compact_output
 
         self.image_tags: List[str] = []
 
@@ -82,39 +77,24 @@ class ImageTagGenerator:
 
     def generate_tags(self) -> List[str]:
 
-        python_options = self._get_component_options(self.python_version, self.python_tag_level)
-        print(f"Python component options: {python_options}", file=sys.stderr)
-
-        node_options = self._get_prefixed_options('node', self.node_version, self.node_tag_level)
-        print(f"Node component options: {node_options}", file=sys.stderr)
-
-        poetry_options = self._get_prefixed_options('poetry', self.poetry_version, self.poetry_tag_level)
-        print(f"Poetry component options: {poetry_options}", file=sys.stderr)
-
-        uv_options = self._get_prefixed_options('uv', self.uv_version, self.uv_tag_level)
-        print(f"uv component options: {uv_options}", file=sys.stderr)
-
-        nvm_options = self._get_prefixed_options('nvm', self.nvm_version, self.nvm_tag_level)
-        print(f"nvm component options: {nvm_options}", file=sys.stderr)
+        component_options_list = []
+        for comp_name, comp_version, comp_tag_level in self.components:
+            if comp_name == 'python':
+                options = self._get_component_options(comp_version, comp_tag_level)
+            else:
+                options = self._get_prefixed_options(comp_name, comp_version, comp_tag_level)
+            component_options_list.append(options)
+            print(f"{comp_name.capitalize()} component options: {options}", file=sys.stderr)
 
         tags: List[str] = []
-        for python_comp, node_comp, poetry_comp, uv_comp, nvm_comp in product(
-            python_options, node_options, poetry_options, uv_options, nvm_options
-        ):
+        for component_values in product(*component_options_list):
             tag_pieces: List[str] = []
 
-            if python_comp:
-                tag_pieces.append(python_comp)
-            if self.python_image_variant:
-                tag_pieces.append(self.python_image_variant)
-            if node_comp:
-                tag_pieces.append(node_comp)
-            if poetry_comp:
-                tag_pieces.append(poetry_comp)
-            if uv_comp:
-                tag_pieces.append(uv_comp)
-            if nvm_comp:
-                tag_pieces.append(nvm_comp)
+            for i, (comp_name, _, _) in enumerate(self.components):
+                if component_values[i]:
+                    tag_pieces.append(component_values[i])
+                if comp_name == 'python' and self.python_image_variant:
+                    tag_pieces.append(self.python_image_variant)
 
             if not tag_pieces:
                 image_tag = 'latest'
@@ -205,18 +185,17 @@ def main():
 
     args = parse_args()
 
+    components: List[Tuple[str, str, str]] = [
+        ('python', args.python_version, args.python_tag_level),
+        ('node', args.node_version, args.node_tag_level),
+        ('poetry', args.poetry_version, args.poetry_tag_level),
+        ('uv', args.uv_version, args.uv_tag_level),
+        ('nvm', args.nvm_version, args.nvm_tag_level),
+    ]
+
     generator = ImageTagGenerator(
-        python_version=args.python_version,
+        components=components,
         python_image_variant=args.python_image_variant,
-        poetry_version=args.poetry_version,
-        uv_version=args.uv_version,
-        nvm_version=args.nvm_version,
-        node_version=args.node_version,
-        python_tag_level=args.python_tag_level,
-        poetry_tag_level=args.poetry_tag_level,
-        uv_tag_level=args.uv_tag_level,
-        nvm_tag_level=args.nvm_tag_level,
-        node_tag_level=args.node_tag_level,
         compact_output=args.compact,
     )
 
