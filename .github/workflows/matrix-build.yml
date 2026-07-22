@@ -1,10 +1,11 @@
 name: Build & Push CD matrix
 
 # GitHub variables:
-# (inherit from build-push.yml)
+# - (inherit from build-push.yml)
 
 # GitHub secrets:
-# (inherit from build-push.yml)
+# - (inherit from build-push.yml)
+# - GITHUB_READ_TOKEN
 
 on:
 
@@ -106,35 +107,38 @@ jobs:
         env:
           PYTHON_VERSION: ${{ inputs.python_version }}
         run: |
-          # python detect-versions.py python --version PYTHON_VERSION
-          uv run python ./scripts/detect-versions.py python --version "${PYTHON_VERSION}"
+          # python detect_versions.py python --version PYTHON_VERSION
+          uv run python ./scripts/detect_versions.py python --version "${PYTHON_VERSION}"
 
       - name: Detect Poetry versions
         env:
           POETRY_VERSION: ${{ inputs.poetry_version }}
         run: |
-          # python detect-versions.py poetry --version POETRY_VERSION
-          uv run python ./scripts/detect-versions.py poetry --version "${POETRY_VERSION}"
+          # python detect_versions.py poetry --version POETRY_VERSION
+          uv run python ./scripts/detect_versions.py poetry --version "${POETRY_VERSION}"
 
       - name: Detect uv versions
         env:
           UV_VERSION: ${{ inputs.uv_version }}
         run: |
-          # python detect-versions.py uv --version UV_VERSION
-          uv run python ./scripts/detect-versions.py uv --version "${UV_VERSION}"
+          # python detect_versions.py uv --version UV_VERSION
+          uv run python ./scripts/detect_versions.py uv --version "${UV_VERSION}"
+
+      - name: Fetch already published tags
+        if: ${{ inputs.skip_published_tags == 'true' }}
+        env:
+          GITHUB_READ_TOKEN: ${{ secrets.GITHUB_READ_TOKEN }}
+        run: |
+          # python fetch_published_tags.py
+          uv run python ./scripts/fetch_published_tags.py
 
       - name: Compute build matrix
-        env:
-          SKIP_PUBLISHED_TAGS: ${{ inputs.skip_published_tags }}
         run: |
-          # python build-matrix.py PACKAGES --skip-published-tags SKIP_PUBLISHED_TAGS
-          rm -f ./dist/build-matrix.yml
-          uv run python ./scripts/build-matrix.py python \
-            --append --skip-published-tags "${SKIP_PUBLISHED_TAGS:-true}"
-          uv run python ./scripts/build-matrix.py python poetry \
-            --append --skip-published-tags "${SKIP_PUBLISHED_TAGS:-true}"
-          uv run python ./scripts/build-matrix.py python uv \
-            --append --skip-published-tags "${SKIP_PUBLISHED_TAGS:-true}"
+          # python build_matrix.py PACKAGES
+          rm -f ./dist/build_matrix.yml
+          uv run python ./scripts/build_matrix.py --append python
+          uv run python ./scripts/build_matrix.py --append python poetry
+          uv run python ./scripts/build_matrix.py --append python uv
 
       - name: Build matrix from detected versions
         run: |
@@ -148,7 +152,7 @@ jobs:
           # to job matrix configuration in JSON format.
           # Limit to 5 entries to avoid overwhelming CI.
           MATRIX_JSON="$(
-            yq -o=json e '.build_matrix' ./dist/build-matrix.yml \
+            yq -o=json e '.build_matrix' ./dist/build_matrix.yml \
             | jq -c '{ include: .[0:5] }'
           )"
 
