@@ -108,21 +108,21 @@ jobs:
           PYTHON_VERSION: ${{ inputs.python_version }}
         run: |
           # python detect_versions.py python --version PYTHON_VERSION
-          uv run python ./scripts/detect_versions.py python --version "${PYTHON_VERSION}"
+          uv run python -m scripts.detect_versions python --version "${PYTHON_VERSION}"
 
       - name: Detect Poetry versions
         env:
           POETRY_VERSION: ${{ inputs.poetry_version }}
         run: |
           # python detect_versions.py poetry --version POETRY_VERSION
-          uv run python ./scripts/detect_versions.py poetry --version "${POETRY_VERSION}"
+          uv run python -m scripts.detect_versions poetry --version "${POETRY_VERSION}"
 
       - name: Detect uv versions
         env:
           UV_VERSION: ${{ inputs.uv_version }}
         run: |
           # python detect_versions.py uv --version UV_VERSION
-          uv run python ./scripts/detect_versions.py uv --version "${UV_VERSION}"
+          uv run python -m scripts.detect_versions uv --version "${UV_VERSION}"
 
       - name: Fetch already published tags
         if: ${{ inputs.skip_published_tags == 'true' }}
@@ -130,15 +130,15 @@ jobs:
           GITHUB_READ_TOKEN: ${{ secrets.GITHUB_READ_TOKEN }}
         run: |
           # python fetch_published_tags.py
-          uv run python ./scripts/fetch_published_tags.py
+          uv run python -m scripts.fetch_published_tags
 
       - name: Compute build matrix
         run: |
           # python build_matrix.py PACKAGES
           rm -f ./dist/build_matrix.yml
-          uv run python ./scripts/build_matrix.py --append python
-          uv run python ./scripts/build_matrix.py --append python poetry
-          uv run python ./scripts/build_matrix.py --append python uv
+          uv run python -m scripts.build_matrix --append python
+          uv run python -m scripts.build_matrix --append python poetry
+          uv run python -m scripts.build_matrix --append python uv
 
       - name: Build matrix from detected versions
         run: |
