@@ -119,64 +119,14 @@ def parse_args() -> argparse.Namespace:
         description='Generate Docker image tags for the devbox image.',
     )
     parser.add_argument(
+        'components',
+        nargs='+',
+        help='List of components in the format: component_name=version[:tag_level]. Example: python=3.14.6:global =slim poetry=20.5.1:minor',
+    )
+    parser.add_argument(
         '-c', '--compact',
         action='store_true',
         help='Output tags as comma-separated values on a single line',
-    )
-    parser.add_argument(
-        '--python-version',
-        default=os.getenv('PYTHON_VERSION', '3.14.6'),
-        help='Python version (default: 3.14.6)',
-    )
-    parser.add_argument(
-        '--python-image-variant',
-        default=os.getenv('PYTHON_IMAGE_VARIANT', ''),
-        help='Python image variant: empty, slim, or alpine',
-    )
-    parser.add_argument(
-        '--poetry-version',
-        default=os.getenv('POETRY_VERSION', ''),
-        help='Poetry version',
-    )
-    parser.add_argument(
-        '--uv-version',
-        default=os.getenv('UV_VERSION', ''),
-        help='UV version',
-    )
-    parser.add_argument(
-        '--nvm-version',
-        default=os.getenv('NVM_VERSION', ''),
-        help='NVM version',
-    )
-    parser.add_argument(
-        '--node-version',
-        default=os.getenv('NODE_VERSION', ''),
-        help='Node version',
-    )
-    parser.add_argument(
-        '--python-tag-level',
-        default=os.getenv('PYTHON_TAG_LEVEL', 'patch'),
-        help='Python tag level: global, major, minor, or patch (default: patch)',
-    )
-    parser.add_argument(
-        '--poetry-tag-level',
-        default=os.getenv('POETRY_TAG_LEVEL', 'patch'),
-        help='Poetry tag level: global, major, minor, or patch (default: patch)',
-    )
-    parser.add_argument(
-        '--uv-tag-level',
-        default=os.getenv('UV_TAG_LEVEL', 'patch'),
-        help='UV tag level: global, major, minor, or patch (default: patch)',
-    )
-    parser.add_argument(
-        '--nvm-tag-level',
-        default=os.getenv('NVM_TAG_LEVEL', 'patch'),
-        help='NVM tag level: global, major, minor, or patch (default: patch)',
-    )
-    parser.add_argument(
-        '--node-tag-level',
-        default=os.getenv('NODE_TAG_LEVEL', 'patch'),
-        help='Node tag level: global, major, minor, or patch (default: patch)',
     )
     return parser.parse_args()
 
@@ -185,14 +135,17 @@ def main():
 
     args = parse_args()
 
-    components: List[Tuple[str, str] | Tuple[str, str, str]] = [
-        ('python', args.python_version, args.python_tag_level),
-        ('', args.python_image_variant),
-        ('node', args.node_version, args.node_tag_level),
-        ('poetry', args.poetry_version, args.poetry_tag_level),
-        ('uv', args.uv_version, args.uv_tag_level),
-        ('nvm', args.nvm_version, args.nvm_tag_level),
-    ]
+    components: List[Tuple[str, str] | Tuple[str, str, str]] = []
+    for comp in args.components:
+        if '=' not in comp:
+            print(f"Invalid component format: {comp}. Expected format: component_name=version[:tag_level]", file=sys.stderr)
+            sys.exit(1)
+        comp_name, version_tag = comp.split('=', 1)
+        if ':' in version_tag:
+            version, tag_level = version_tag.split(':', 1)
+            components.append((comp_name, version, tag_level))
+        else:
+            components.append((comp_name, version_tag))
 
     generator = ImageTagGenerator(
         components=components,
