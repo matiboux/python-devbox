@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from datetime import datetime, timezone
-from typing import Any, List, Dict, Optional, Tuple
+from typing import Any, List, Dict, Tuple
 import argparse
 import json
 import os
@@ -264,7 +264,7 @@ class DetectVersions:
 
         if not data or not isinstance(data, list):
             print(
-                f'Warning: Could not fetch versions from Node.js API, using previously cached versions',
+                'Warning: Could not fetch versions from Node.js API, using previously cached versions',
                 file=sys.stderr,
             )
             return []

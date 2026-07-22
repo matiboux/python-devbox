@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Tuple, Set
+from typing import Set
 import argparse
-import itertools
 import json
 import os
-import re
 import sys
 import urllib.error
 import urllib.request
