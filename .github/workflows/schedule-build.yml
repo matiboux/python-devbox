@@ -42,13 +42,19 @@ jobs:
       matrix:
         include:
           # Devbox Python
-          - package_versions: python
-          - package_versions: python,poetry
-          - package_versions: python,uv
+          - src_dirname: python
+            package_versions: python
+          - src_dirname: python
+            package_versions: python,poetry
+          - src_dirname: python
+            package_versions: python,uv
           # Devbox Python + Node
-          - package_versions: python,node,nvm
-          - package_versions: python,node,nvm,poetry
-          - package_versions: python,node,nvm,uv
+          - src_dirname: python
+            package_versions: python,node,nvm
+          - src_dirname: python
+            package_versions: python,node,nvm,poetry
+          - src_dirname: python
+            package_versions: python,node,nvm,uv
 
     # Job dependencies
     needs:
@@ -61,6 +67,7 @@ jobs:
 
     uses: ./.github/workflows/matrix-build.yml
     with:
+      src_dirname: ${{ matrix.src_dirname }}
       package_versions: ${{ matrix.package_versions }}
       skip_published_tags: ${{ inputs.skip_published_tags }}
     secrets: inherit

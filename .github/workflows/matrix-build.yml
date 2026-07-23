@@ -12,6 +12,9 @@ on:
   # Run on workflow calls
   workflow_call:
     inputs:
+      src_dirname:
+        description: 'Source directory name (e.g. python, node)'
+        type: string
       package_versions:
         description: 'Comma-separated list or JSON list of package versions to build'
         type: string
@@ -33,6 +36,9 @@ on:
   # Run on manual triggers
   workflow_dispatch:
     inputs:
+      src_dirname:
+        description: 'Source directory name (e.g. python, node)'
+        type: string
       package_versions:
         description: 'Comma-separated list or JSON list of package versions to build'
         type: string
@@ -238,11 +244,7 @@ jobs:
 
     uses: ./.github/workflows/build-push.yml
     with:
-      python_version: ${{ matrix.python_version }}
-      python_image_variant: ${{ matrix.python_image_variant }}
-      poetry_version: ${{ matrix.poetry_version }}
-      uv_version: ${{ matrix.uv_version }}
-      python_tag_level: ${{ matrix.python_tag_level }}
-      poetry_tag_level: ${{ matrix.poetry_tag_level }}
-      uv_tag_level: ${{ matrix.uv_tag_level }}
+      src_dirname: ${{ inputs.src_dirname }}
+      # package_versions: ${{ matrix.package_versions }}
+      # skip_published_tags: ${{ inputs.skip_published_tags }}
     secrets: inherit
