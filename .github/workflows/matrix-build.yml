@@ -17,16 +17,8 @@ on:
   # Run on manual triggers
   workflow_dispatch:
     inputs:
-      python_version:
-        description: 'Limit build to a specific Python version (e.g. 3, 3.14, 3.13.14).'
-        type: string
-        required: false
-      poetry_version:
-        description: 'Limit build to a specific Poetry version (e.g. 2, 2.3, 2.3.4).'
-        type: string
-        required: false
-      uv_version:
-        description: 'Limit build to a specific uv version (e.g. 0.9, 0.9.5).'
+      package_versions:
+        description: 'Comma-separated list or JSON list of package versions to build'
         type: string
         required: false
       skip_published_tags:
@@ -105,24 +97,35 @@ jobs:
 
       - name: Detect Python versions
         env:
-          PYTHON_VERSION: ${{ inputs.python_version }}
+          PACKAGE_VERSIONS: ${{ inputs.package_versions }}
         run: |
-          # python detect_versions.py python --version PYTHON_VERSION
-          uv run python -m scripts.detect_versions python --version "${PYTHON_VERSION}"
+          # python detect_versions.py ...package_versions
 
-      - name: Detect Poetry versions
-        env:
-          POETRY_VERSION: ${{ inputs.poetry_version }}
-        run: |
-          # python detect_versions.py poetry --version POETRY_VERSION
-          uv run python -m scripts.detect_versions poetry --version "${POETRY_VERSION}"
+          if [ -z "${PACKAGE_VERSIONS}" ]; then
+            echo 'Error: No package versions provided.'
+            exit 1
+          fi
 
-      - name: Detect uv versions
-        env:
-          UV_VERSION: ${{ inputs.uv_version }}
-        run: |
-          # python detect_versions.py uv --version UV_VERSION
-          uv run python -m scripts.detect_versions uv --version "${UV_VERSION}"
+          # Convert PACKAGE_VERSIONS from a comma-separated list or JSON list
+          # to a newline-separated list for iteration
+          PACKAGE_VERSIONS_LIST="$(
+            echo "${PACKAGE_VERSIONS}" \
+            | jq -Rnrc '
+              input
+              | if test("^\\s*\\[") then fromjson else split("[\\s,]+"; null) end
+              | map(gsub("^\\s+|\\s+$"; ""))
+              | map(select(length > 0))
+              | .[]
+            '
+          )"
+
+          # Detect versions for each package in the list
+          while IFS= read -r package_version; do
+            package_name="$(echo "${package_version}" | cut -d'=' -f1)"
+            package_version="$(echo "${package_version}" | cut -d'=' -f2-)"
+            echo "Detecting versions for package '${package_name}' with version '${package_version}'..."
+            uv run python -m scripts.detect_versions "${package_name}" --version "${package_version}"
+          done <<< "${PACKAGE_VERSIONS_LIST}"
 
       - name: Fetch already published tags
         if: ${{ inputs.skip_published_tags == 'true' }}
