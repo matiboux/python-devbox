@@ -25,54 +25,15 @@ on:
   # Run on workflow calls
   workflow_call:
     inputs:
-      python_version:
-        description: 'Python version (e.g. 3.14, 3.13.14)'
+      src_dirname:
+        description: 'Source directory name (e.g. python, node)'
         type: string
-      python_image_variant:
-        description: 'Python image variant (e.g. [empty], slim, alpine)'
+      image_tag_components:
+        description: 'Comma-separated list or JSON list of image tag components'
         type: string
-        required: false
-      node_version:
-        description: 'Node.js version (e.g. 26, 24.18.0)'
+      build_args:
+        description: 'Comma-separated list or JSON list of build arguments'
         type: string
-        required: false
-      poetry_version:
-        description: 'Poetry version (e.g. 2.4, 1.8.5)'
-        type: string
-        required: false
-      uv_version:
-        description: 'uv version (e.g. 0.11, 0.10.12)'
-        type: string
-        required: false
-      nvm_version:
-        description: 'nvm version (e.g. 0.40, 0.39.7)'
-        type: string
-        required: false
-      python_tag_level:
-        description: 'Python tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
-      node_tag_level:
-        description: 'Node.js tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
-      poetry_tag_level:
-        description: 'Poetry tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
-      uv_tag_level:
-        description: 'uv tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
-      nvm_tag_level:
-        description: 'nvm tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
     secrets:
       DHCR_TOKEN:
         required: false
@@ -86,54 +47,15 @@ on:
   # Run on manual triggers
   workflow_dispatch:
     inputs:
-      python_version:
-        description: 'Python version (e.g. 3.14, 3.13.14)'
+      src_dirname:
+        description: 'Source directory name (e.g. python, node)'
         type: string
-      python_image_variant:
-        description: 'Python image variant (e.g. [empty], slim, alpine)'
+      image_tag_components:
+        description: 'Comma-separated list or JSON list of image tag components'
         type: string
-        required: false
-      node_version:
-        description: 'Node.js version (e.g. 26, 24.18.0)'
+      build_args:
+        description: 'Comma-separated list or JSON list of build arguments'
         type: string
-        required: false
-      poetry_version:
-        description: 'Poetry version (e.g. 2.4, 1.8.5)'
-        type: string
-        required: false
-      uv_version:
-        description: 'uv version (e.g. 0.11, 0.10.12)'
-        type: string
-        required: false
-      nvm_version:
-        description: 'nvm version (e.g. 0.40, 0.39.7)'
-        type: string
-        required: false
-      python_tag_level:
-        description: 'Python tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
-      node_tag_level:
-        description: 'Node.js tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
-      poetry_tag_level:
-        description: 'Poetry tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
-      uv_tag_level:
-        description: 'uv tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
-      nvm_tag_level:
-        description: 'nvm tag level (e.g. global, major, minor, patch)'
-        type: string
-        required: false
-        default: 'patch'
 
 # Set GITHUB_TOKEN permissions for the workflow
 permissions:
@@ -141,7 +63,7 @@ permissions:
 
 # Set workflow concurrency rules
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.python_version }}-${{ inputs.python_image_variant }}-${{ inputs.node_version }}-${{ inputs.poetry_version }}-${{ inputs.uv_version }}-${{ inputs.nvm_version }}
+  group: ${{ github.workflow }}-${{ inputs.src_dirname }}-${{ inputs.image_tag_components }}
   cancel-in-progress: true
 
 # Set environment variables for the workflow
@@ -152,7 +74,7 @@ env:
   IMAGES_PREFIX: ${{ vars.IMAGES_PREFIX }}
   IMAGES_SUFFIX: ''
   CONTEXT_DIR: .
-  DOCKERFILE_PATH: ./src/python/Dockerfile
+  DOCKERFILE_PATH: ./src/${{ inputs.src_dirname }}/Dockerfile
   BUILD_CONTEXTS: ''
 
 jobs:
@@ -274,61 +196,13 @@ jobs:
 
       # Execution steps
 
-      - name: Validate inputs
-        env:
-          PYTHON_VERSION: ${{ inputs.python_version }}
-          POETRY_VERSION: ${{ inputs.poetry_version }}
-          UV_VERSION: ${{ inputs.uv_version }}
-          NVM_VERSION: ${{ inputs.nvm_version }}
-          NODE_VERSION: ${{ inputs.node_version }}
-        run: |
-          # Validate inputs
-
-          if [ -z "${PYTHON_VERSION}" ]; then
-            echo 'Error: Missing required input: python_version' >&2
-            exit 1
-          elif ! echo "${PYTHON_VERSION}" | grep -Eq '^[0-9]+(\.[0-9]+){,2}$'; then
-            echo "Error: Invalid python_version format: ${PYTHON_VERSION}" >&2
-            exit 1
-          fi
-
-          if [ -n "${POETRY_VERSION}" ] && ! echo "${POETRY_VERSION}" | grep -Eq '^[0-9]+(\.[0-9]+){,2}$'; then
-            echo "Error: Invalid poetry_version format: ${POETRY_VERSION}" >&2
-            exit 1
-          fi
-
-          if [ -n "${UV_VERSION}" ] && ! echo "${UV_VERSION}" | grep -Eq '^[0-9]+(\.[0-9]+){,2}$'; then
-            echo "Error: Invalid uv_version format: ${UV_VERSION}" >&2
-            exit 1
-          fi
-
-          if [ -n "${NVM_VERSION}" ] && ! echo "${NVM_VERSION}" | grep -Eq '^[0-9]+(\.[0-9]+){,2}$'; then
-            echo "Error: Invalid nvm_version format: ${NVM_VERSION}" >&2
-            exit 1
-          fi
-
-          if [ -n "${NODE_VERSION}" ] && ! echo "${NODE_VERSION}" | grep -Eq '^[0-9]+(\.[0-9]+){,2}$'; then
-            echo "Error: Invalid node_version format: ${NODE_VERSION}" >&2
-            exit 1
-          fi
-
       - name: Install deps
         run: |
           uv sync --frozen
 
       - name: Set IMAGE_TAGS
         env:
-          PYTHON_VERSION: ${{ inputs.python_version }}
-          PYTHON_IMAGE_VARIANT: ${{ inputs.python_image_variant }}
-          POETRY_VERSION: ${{ inputs.poetry_version }}
-          UV_VERSION: ${{ inputs.uv_version }}
-          NVM_VERSION: ${{ inputs.nvm_version }}
-          NODE_VERSION: ${{ inputs.node_version }}
-          PYTHON_TAG_LEVEL: ${{ inputs.python_tag_level }}
-          POETRY_TAG_LEVEL: ${{ inputs.poetry_tag_level }}
-          UV_TAG_LEVEL: ${{ inputs.uv_tag_level }}
-          NVM_TAG_LEVEL: ${{ inputs.nvm_tag_level }}
-          NODE_TAG_LEVEL: ${{ inputs.node_tag_level }}
+          IMAGE_TAG_COMPONENTS: ${{ inputs.image_tag_components }}
         run: |
           # Set IMAGE_TAGS environment variable
 
@@ -337,14 +211,8 @@ jobs:
 
           image_tags_file="$(mktemp)"
 
-          uv run python -m scripts.image_tag \
-            --compact \
-            python="${PYTHON_VERSION}":"${PYTHON_TAG_LEVEL}" \
-            ="${PYTHON_IMAGE_VARIANT}" \
-            node="${NODE_VERSION}":"${NODE_TAG_LEVEL}" \
-            poetry="${POETRY_VERSION}":"${POETRY_TAG_LEVEL}" \
-            uv="${UV_VERSION}":"${UV_TAG_LEVEL}" \
-            nvm="${NVM_VERSION}":"${NVM_TAG_LEVEL}" \
+          uv run python -m scripts.image_tag --compact \
+            "${IMAGE_TAG_COMPONENTS}" \
             > "${image_tags_file}"
 
           IMAGE_TAGS="$(cat "${image_tags_file}")"
@@ -426,11 +294,6 @@ jobs:
     env:
       IMAGE_TAGS: ${{ needs.prepare.outputs.image_tags }}
       BUILD_PLATFORM: ${{ matrix.platform }}
-      PYTHON_VERSION: ${{ inputs.python_version }}
-      POETRY_VERSION: ${{ inputs.poetry_version }}
-      UV_VERSION: ${{ inputs.uv_version }}
-      NVM_VERSION: ${{ inputs.nvm_version }}
-      NODE_VERSION: ${{ inputs.node_version }}
 
     steps:
 
@@ -601,6 +464,30 @@ jobs:
 
           set_github_env 'PLATFORM_IMAGE_REFS' "${PLATFORM_IMAGE_REFS}" non-optional non-secret verbose
 
+      - name: Set BUILD_ARGS
+        env:
+          BUILD_ARGS: ${{ inputs.build_args }}
+        run: |
+          # Set BUILD_ARGS environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Convert BUILD_ARGS from a comma-separated list or JSON list
+          # to a newline-separated list of build arguments
+          CONVERTED_BUILD_ARGS="$(
+            echo "${BUILD_ARGS}" \
+            | jq -Rnrc '
+              input
+              | if test("^\\s*\\[") then fromjson else split("[\\s,]+"; null) end
+              | map(gsub("^\\s+|\\s+$"; ""))
+              | map(select(length > 0))
+              | .[]
+            '
+          )"
+
+          set_github_env 'BUILD_ARGS' "${CONVERTED_BUILD_ARGS}" non-optional non-secret verbose
+
       # Execution steps
 
       - name: Login to Docker Hub registry
@@ -648,13 +535,7 @@ jobs:
           context: ${{ env.CONTEXT_DIR }}
           build-contexts: ${{ env.BUILD_CONTEXTS }}
           target: python_devbox
-          build-args: |
-            PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-            PYTHON_IMAGE_VARIANT=${{ env.PYTHON_IMAGE_VARIANT }}
-            POETRY_VERSION=${{ env.POETRY_VERSION }}
-            UV_VERSION=${{ env.UV_VERSION }}
-            NVM_VERSION=${{ env.NVM_VERSION }}
-            NODE_VERSION=${{ env.NODE_VERSION }}
+          build-args: ${{ env.BUILD_ARGS }}
           platforms: ${{ matrix.platform }}
           push: true
           cache-from: type=gha
