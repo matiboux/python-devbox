@@ -26,6 +26,10 @@ on:
         description: 'Comma-separated list or JSON list of package versions to build'
         type: string
         required: false
+      base_variants:
+        description: 'Comma-separated list or JSON list of base variants to build (e.g. "", "slim", "alpine")'
+        type: string
+        required: false
       skip_published_tags:
         description: 'Skip tags already published to the registry. Disable to force rebuild of published tags.'
         type: boolean
@@ -53,6 +57,10 @@ on:
         description: 'Comma-separated list or JSON list of package versions to build'
         type: string
         required: false
+      base_variants:
+        description: 'Comma-separated list or JSON list of base variants to build (e.g. "", "slim", "alpine")'
+        type: string
+        required: false
       skip_published_tags:
         description: 'Skip tags already published to the registry. Disable to force rebuild of published tags.'
         type: boolean
@@ -65,7 +73,7 @@ permissions:
 
 # Set workflow concurrency rules
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ inputs.images_prefix }}-${{ inputs.src_dirname }}-${{ inputs.package_versions }}-${{ inputs.base_variants }}
   cancel-in-progress: true
 
 jobs:
@@ -172,7 +180,14 @@ jobs:
           # Detect versions for each specified package
           while IFS= read -r package_entry; do
 
-            package_name="$(echo "${package_entry}" | cut -d'=' -f1)"
+            # Extract package name and version from the entry
+            # Remove unlabeled flags ('?') from package names
+            package_name="$(
+              echo "${package_entry}" \
+              | cut -d'=' -f1 \
+              | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/?$//' \
+              | tr '[:upper:]' '[:lower:]'
+            )"
             package_version="$(echo "${package_entry}" | cut -d'=' -f2-)"
 
             echo "Detecting versions for package '${package_name}' with version '${package_version}'..."
@@ -184,26 +199,32 @@ jobs:
         if: ${{ inputs.skip_published_tags == 'true' }}
         env:
           GITHUB_READ_TOKEN: ${{ secrets.GITHUB_READ_TOKEN }}
+          IMAGES_PREFIX: ${{ inputs.images_prefix }}
         run: |
           # python fetch_published_tags.py
-          uv run python -m scripts.fetch_published_tags
+          uv run python -m scripts.fetch_published_tags "${IMAGES_PREFIX}"
 
       - name: Compute build matrix
         env:
+          BASE_VARIANTS: ${{ inputs.base_variants }}
           PACKAGE_VERSIONS: ${{ env.PACKAGE_VERSIONS }}
         run: |
           # python build_matrix.py ...PACKAGES
 
-          # List specified packages without versions
+          # List specified package names (without versions) with unlabeled flags ('?')
           PACKAGES="$(
             echo "${PACKAGE_VERSIONS}" \
             | cut -d'=' -f1 \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | tr '[:upper:]' '[:lower:]' \
             | tr '\n' ','
           )"
 
           # Compute build matrix for specified packages
           rm -f ./dist/build_matrix.yml
-          uv run python -m scripts.build_matrix --append ${PACKAGES}
+          uv run python -m scripts.build_matrix --append \
+            --base-variants "${BASE_VARIANTS}" \
+            ${PACKAGES}
 
       - name: Build matrix from detected versions
         run: |
@@ -235,9 +256,9 @@ jobs:
 
           set_github_output 'matrix' "${MATRIX_JSON}" non-optional verbose
 
-  # Run workflow for each build matrix entry
+  # Run image build for each matrix entry
   build-push:
-    name: Run workflow
+    name: Run image build
 
     strategy:
       fail-fast: false

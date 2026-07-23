@@ -4,7 +4,7 @@ set -euo pipefail
 # Build Docker image with specified tags and versions.
 
 PYTHON_VERSION="${PYTHON_VERSION:-3.14.6}"
-PYTHON_IMAGE_VARIANT="${PYTHON_IMAGE_VARIANT:-}"
+PYTHON_VARIANT="${PYTHON_VARIANT:-}"
 POETRY_VERSION="${POETRY_VERSION:-}"
 UV_VERSION="${UV_VERSION:-}"
 NVM_VERSION="${NVM_VERSION:-}"
@@ -45,13 +45,13 @@ fi
 
 REGISTRY_NAMESPACE="${REGISTRY_NAMESPACE:-matiboux}"
 REGISTRY_REPOSITORY="${REGISTRY_REPOSITORY:-python-devbox}"
-PYTHON_IMAGE_TAG="${PYTHON_VERSION}${PYTHON_IMAGE_VARIANT:+-${PYTHON_IMAGE_VARIANT}}"
+PYTHON_IMAGE_TAG="${PYTHON_VERSION}${PYTHON_VARIANT:+-${PYTHON_VARIANT}}"
 
 # Image tags for the targetted Docker build
 IMAGE_TAGS="$(
     "${PYTHON_COMMAND}" "${PROJECT_DIR}/scripts/image-tags.py" \
         --python-version "${PYTHON_VERSION}" \
-        --python-image-variant "${PYTHON_IMAGE_VARIANT}" \
+        --python-variant "${PYTHON_VARIANT}" \
         --poetry-version "${POETRY_VERSION}" \
         --uv-version "${UV_VERSION}" \
         --nvm-version "${NVM_VERSION}" \
@@ -67,7 +67,7 @@ IMAGE_TAGS="$(
 IMAGE_TAG_FIRST="$(echo "${IMAGE_TAGS}" | head -n 1)"
 
 echo "Building image: ${IMAGE_TAG_FIRST}"
-echo "  Python: ${PYTHON_VERSION} (variant: ${PYTHON_IMAGE_VARIANT:-default})"
+echo "  Python: ${PYTHON_VERSION} (variant: ${PYTHON_VARIANT:-default})"
 if [ -n "${POETRY_VERSION}" ]; then
     echo "  Poetry: ${POETRY_VERSION}"
 fi
@@ -84,7 +84,7 @@ fi
 # Build arguments
 BUILD_ARGS=(
     --build-arg "PYTHON_VERSION=${PYTHON_VERSION}"
-    --build-arg "PYTHON_IMAGE_VARIANT=${PYTHON_IMAGE_VARIANT}"
+    --build-arg "PYTHON_VARIANT=${PYTHON_VARIANT}"
     --build-arg "POETRY_VERSION=${POETRY_VERSION}"
     --build-arg "UV_VERSION=${UV_VERSION}"
     --build-arg "NVM_VERSION=${NVM_VERSION}"

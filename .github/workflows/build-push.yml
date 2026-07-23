@@ -79,7 +79,6 @@ env:
   DHCR_ENABLED: ${{ vars.DHCR_ENABLED == 'true' }}
   GHCR_ENABLED: ${{ vars.GHCR_ENABLED == 'true' }}
   CUSTOM_CR_ENABLED: ${{ vars.CUSTOM_CR_ENABLED == 'true' }}
-  # IMAGES_PREFIX: ${{ vars.IMAGES_PREFIX }}
   IMAGES_PREFIX: ${{ inputs.images_prefix || vars.IMAGES_PREFIX }}
   IMAGES_SUFFIX: ''
   CONTEXT_DIR: .
@@ -90,7 +89,7 @@ jobs:
 
   # Prepare job
   prepare:
-    name: Prepare build matrix
+    name: Prepare image build
 
     # https://github.com/actions/runner-images/blob/main/images/ubuntu-slim/ubuntu-slim-Readme.md
     runs-on: ubuntu-slim
@@ -279,7 +278,7 @@ jobs:
 
   # Build & push job
   build-push:
-    name: Build & push
+    name: Build & push image
 
     strategy:
       fail-fast: false
@@ -547,7 +546,7 @@ jobs:
           file: ${{ env.CONTEXT_DIR }}/${{ env.DOCKERFILE_PATH }}
           context: ${{ env.CONTEXT_DIR }}
           build-contexts: ${{ env.BUILD_CONTEXTS }}
-          target: python_devbox
+          target: devbox
           build-args: ${{ env.BUILD_ARGS }}
           platforms: ${{ matrix.platform }}
           push: true
@@ -556,7 +555,7 @@ jobs:
 
   # Push manifest job
   push-manifest:
-    name: Push manifest
+    name: Push image manifest
 
     # https://github.com/actions/runner-images/blob/main/images/ubuntu-slim/ubuntu-slim-Readme.md
     runs-on: ubuntu-slim
