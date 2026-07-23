@@ -114,7 +114,7 @@ class BuildMatrix:
 
                 image_tag_components: List[Tuple[str, str, str, bool]] = [
                     (base_package, packages_version[base_package], 'global' if packages_version[base_package] == latest_versions[base_package] else 'minor', base_package in self.unlabeled_packages),
-                    *([(f"{base_package}_image_variant", base_variant, 'patch', True)] if base_variant is not None else []),
+                    *([(f"{base_package}_variant", base_variant, 'patch', True)] if base_variant is not None else []),
                     *[
                         (other_package, packages_version[other_package], 'global' if packages_version[base_package] == latest_versions[base_package] else 'minor', other_package in self.unlabeled_packages)
                         for other_package in other_packages
@@ -145,7 +145,7 @@ class BuildMatrix:
                     ),
                     'build_args': json.dumps([
                         f"{base_package.upper()}_VERSION={packages_version[base_package]}",
-                        *([f"{base_package.upper()}_IMAGE_VARIANT={base_variant}"] if base_variant is not None else []),
+                        *([f"{base_package.upper()}_VARIANT={base_variant}"] if base_variant is not None else []),
                         *[
                             f"{other_package.upper()}_VERSION={packages_version[other_package]}"
                             for other_package in other_packages
