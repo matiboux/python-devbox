@@ -7,6 +7,10 @@ name: Orchestrate Devbox image builds
 # - (inherit from build-push.yml)
 # - GITHUB_READ_TOKEN
 
+# Helper scripts:
+# - ./.github/workflows/scripts/set_github_env.sh
+# - ./.github/workflows/scripts/set_github_output.sh
+
 on:
 
   # Run on workflow calls
