@@ -1,0 +1,66 @@
+name: Schedule Devbox images build
+
+# GitHub variables:
+# - (inherit from matrix-build.yml)
+
+# GitHub secrets:
+# - (inherit from matrix-build.yml)
+
+on:
+
+  # Run on schedule
+  schedule:
+    # Daily at 2 AM, 8 AM, 2 PM, and 8 PM (UTC)
+    - cron: '0 2/6 * * *'
+
+  # Run on manual triggers
+  workflow_dispatch:
+    inputs:
+      skip_published_tags:
+        description: 'Skip tags already published to the registry. Disable to force rebuild of published tags.'
+        type: boolean
+        required: false
+        default: true
+
+# Set default GITHUB_TOKEN permissions for the workflow
+permissions:
+  contents: read
+
+# Set workflow concurrency rules
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+
+  # Run matrix-build for each packages combination
+  matrix-build:
+    name: Build packages combinations
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Devbox Python
+          - package_versions: python
+          - package_versions: python,poetry
+          - package_versions: python,uv
+          # Devbox Python + Node
+          - package_versions: python,nvm,node
+          - package_versions: python,nvm,node,poetry
+          - package_versions: python,nvm,node,uv
+
+    # Job dependencies
+    needs:
+      - prepare
+
+    # Set GITHUB_TOKEN permissions for the job
+    permissions:
+      contents: read
+      packages: write
+
+    uses: ./.github/workflows/matrix-build.yml
+    with:
+      package_versions: ${{ matrix.package_versions }}
+      skip_published_tags: ${{ inputs.skip_published_tags }}
+    secrets: inherit
