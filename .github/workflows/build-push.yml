@@ -79,7 +79,6 @@ env:
   DHCR_ENABLED: ${{ vars.DHCR_ENABLED == 'true' }}
   GHCR_ENABLED: ${{ vars.GHCR_ENABLED == 'true' }}
   CUSTOM_CR_ENABLED: ${{ vars.CUSTOM_CR_ENABLED == 'true' }}
-  # IMAGES_PREFIX: ${{ vars.IMAGES_PREFIX }}
   IMAGES_PREFIX: ${{ inputs.images_prefix || vars.IMAGES_PREFIX }}
   IMAGES_SUFFIX: ''
   CONTEXT_DIR: .
