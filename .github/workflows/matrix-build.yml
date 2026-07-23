@@ -180,6 +180,8 @@ jobs:
           # Detect versions for each specified package
           while IFS= read -r package_entry; do
 
+            # Extract package name and version from the entry
+            # Remove unlabeled flags ('?') from package names
             package_name="$(
               echo "${package_entry}" \
               | cut -d'=' -f1 \
@@ -208,11 +210,11 @@ jobs:
         run: |
           # python build_matrix.py ...PACKAGES
 
-          # List specified packages without versions
+          # List specified package names (without versions) with unlabeled flags ('?')
           PACKAGES="$(
             echo "${PACKAGE_VERSIONS}" \
             | cut -d'=' -f1 \
-            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/?$//' \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
             | tr '[:upper:]' '[:lower:]' \
             | tr '\n' ','
           )"
