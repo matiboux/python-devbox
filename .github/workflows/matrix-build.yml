@@ -65,7 +65,7 @@ permissions:
 
 # Set workflow concurrency rules
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ inputs.images_prefix }}-${{ inputs.src_dirname }}-${{ inputs.package_versions }}
   cancel-in-progress: true
 
 jobs:
