@@ -46,9 +46,9 @@ jobs:
           - package_versions: python,poetry
           - package_versions: python,uv
           # Devbox Python + Node
-          - package_versions: python,nvm,node
-          - package_versions: python,nvm,node,poetry
-          - package_versions: python,nvm,node,uv
+          - package_versions: python,node,nvm
+          - package_versions: python,node,nvm,poetry
+          - package_versions: python,node,nvm,uv
 
     # Job dependencies
     needs:
