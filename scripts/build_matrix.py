@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple, Set
 import argparse
 import itertools
 import os
+import json
 import sys
 
 import yaml
@@ -176,8 +177,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         'packages',
-        nargs='*',
-        default=[],
+        nargs='+',
         help='Packages to include in build matrix. If empty, all are included.',
     )
     parser.add_argument(
@@ -205,9 +205,19 @@ def main():
 
     args = parse_args()
 
+    packages_input = None
+    if args.packages and len(args.packages) == 1:
+        packages_input = str(args.packages[0]).strip()
+        try:
+            packages_input = json.loads(packages_input)
+        except json.JSONDecodeError:
+            packages_input = packages_input.split(',')
+    if not packages_input:
+        packages_input = args.packages
+
     try:
         matrix_builder = BuildMatrix(
-            packages=args.packages,
+            packages=packages_input,
             skip_published_tags=args.skip_published_tags,
         )
     except ValueError as e:

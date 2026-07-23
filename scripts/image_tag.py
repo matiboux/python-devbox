@@ -138,7 +138,7 @@ def main():
     args = parse_args()
 
     components_input = None
-    if args.components and len(args.components) <= 1:
+    if args.components and len(args.components) == 1:
         components_input = str(args.components[0]).strip()
         try:
             components_input = json.loads(components_input)
