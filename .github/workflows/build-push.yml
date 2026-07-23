@@ -89,7 +89,7 @@ jobs:
 
   # Prepare job
   prepare:
-    name: Prepare build matrix
+    name: Prepare image build
 
     # https://github.com/actions/runner-images/blob/main/images/ubuntu-slim/ubuntu-slim-Readme.md
     runs-on: ubuntu-slim
@@ -278,7 +278,7 @@ jobs:
 
   # Build & push job
   build-push:
-    name: Build & push
+    name: Build & push image
 
     strategy:
       fail-fast: false
@@ -555,7 +555,7 @@ jobs:
 
   # Push manifest job
   push-manifest:
-    name: Push manifest
+    name: Push image manifest
 
     # https://github.com/actions/runner-images/blob/main/images/ubuntu-slim/ubuntu-slim-Readme.md
     runs-on: ubuntu-slim

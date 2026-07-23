@@ -255,9 +255,9 @@ jobs:
 
           set_github_output 'matrix' "${MATRIX_JSON}" non-optional verbose
 
-  # Run workflow for each build matrix entry
+  # Run image build for each matrix entry
   build-push:
-    name: Run workflow
+    name: Run image build
 
     strategy:
       fail-fast: false
