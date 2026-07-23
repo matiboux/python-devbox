@@ -135,7 +135,7 @@ jobs:
                 end
               | select(length > 0)
               | split("=")
-              | "\(.[0] | ascii_upcase)=\(.[1: ] | join("="))"
+              | "\(.[0])=\(.[1:] | join("="))"
             '
           )"
 
