@@ -18,11 +18,13 @@ class BuildMatrix:
     def __init__(
         self,
         packages: List[str],
+        base_variants: List[str] | Set[str] | None = None,
         versions_path: str = 'dist/versions.yml',
         published_tags_path: str = 'dist/published_tags.yaml',
         skip_published_tags: bool = True,
         output_path: str = 'dist/build_matrix.yml',
     ):
+        self.base_variants: Set[str] | None = set(base_variants) if base_variants else None
         self.versions_path: str = versions_path
         self.published_tags_path: str = published_tags_path
         self.skip_published_tags: bool = skip_published_tags
@@ -72,7 +74,7 @@ class BuildMatrix:
         all_detected_versions = self.versions.get('detected_versions', {})
         all_latest_versions = self.versions.get('latest_version', {})
         all_base_variants = {
-            'python': ['', 'slim', 'alpine'],
+            'python': set(['', 'slim', 'alpine']),
         }
 
         base_package = self.packages[0]
@@ -88,7 +90,9 @@ class BuildMatrix:
             detected_versions[package] = package_versions
             latest_versions[package] = all_latest_versions.get(package, package_versions[0])
 
-        base_variants = all_base_variants.get(base_package) or [None]
+        # base_variants = all_base_variants.get(base_package) or [None]
+        base_variants = all_base_variants.get(base_package)
+        selected_base_variants = self.base_variants.intersection(base_variants) if self.base_variants and base_variants else [None]
 
         if skip_published_tags:
             try:
@@ -106,7 +110,7 @@ class BuildMatrix:
         for versions_combo in itertools.product(*detected_versions.values()):
             packages_version = dict(zip(self.packages, versions_combo))
 
-            for base_variant in base_variants:
+            for base_variant in selected_base_variants:
 
                 image_tag_components: List[Tuple[str, str, str, bool]] = [
                     (base_package, packages_version[base_package], 'global' if packages_version[base_package] == latest_versions[base_package] else 'minor', base_package in self.unlabeled_packages),
@@ -199,6 +203,12 @@ def parse_args() -> argparse.Namespace:
         help='Packages to include in build matrix. If empty, all are included.',
     )
     parser.add_argument(
+        '--base-variants',
+        type=str,
+        default='',
+        help='Comma-separated list or JSON list of base variants to build (e.g. "", "slim", "alpine").',
+    )
+    parser.add_argument(
         '--skip-published-tags',
         type=_parse_bool,
         default=True,
@@ -233,9 +243,18 @@ def main():
     if not packages_input:
         packages_input = args.packages
 
+    base_variants_input = None
+    if args.base_variants:
+        base_variants_input = str(args.base_variants).strip()
+        try:
+            base_variants_input = json.loads(base_variants_input)
+        except json.JSONDecodeError:
+            base_variants_input = base_variants_input.split(',')
+
     try:
         matrix_builder = BuildMatrix(
             packages=packages_input,
+            base_variants=base_variants_input,
             skip_published_tags=args.skip_published_tags,
         )
     except ValueError as e:
