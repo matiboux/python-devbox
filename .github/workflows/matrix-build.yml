@@ -9,10 +9,26 @@ name: Build & Push CD matrix
 
 on:
 
-  # Run on schedule
-  schedule:
-    # Daily at 5 AM and 5 PM (UTC)
-    - cron: '0 5,17 * * *'
+  # Run on workflow calls
+  workflow_call:
+    inputs:
+      package_versions:
+        description: 'Comma-separated list or JSON list of package versions to build'
+        type: string
+        required: false
+      skip_published_tags:
+        description: 'Skip tags already published to the registry. Disable to force rebuild of published tags.'
+        type: boolean
+        required: false
+        default: true
+    secrets:
+      GITHUB_READ_TOKEN:
+        required: false
+      # Inherited from build-push.yml:
+      DHCR_TOKEN:
+        required: false
+      CUSTOM_CR_TOKEN:
+        required: false
 
   # Run on manual triggers
   workflow_dispatch:
