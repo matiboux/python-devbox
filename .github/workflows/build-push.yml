@@ -479,11 +479,15 @@ jobs:
             echo "${BUILD_ARGS}" \
             | jq -Rnrc '
               input
-              | if test("^\\s*\\[") then fromjson else split("[\\s,]+"; null) end
-              | map(gsub("^\\s+|\\s+$"; ""))
-              | map(select(length > 0))
-              | .[]
-            '
+              | if test("^\\s*\\[") then
+                  fromjson[]
+                else
+                  gsub(","; " ")
+                  | splits("\\s+")
+                end
+              | select(length > 0)
+              | split("=")
+              | "\(.[0] | ascii_upcase)=\(.[1: ] | join("="))"            '
           )"
 
           set_github_env 'BUILD_ARGS' "${CONVERTED_BUILD_ARGS}" non-optional non-secret verbose
