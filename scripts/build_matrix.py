@@ -118,7 +118,7 @@ class BuildMatrix:
                     (base_package, packages_version[base_package], 'global' if packages_version[base_package] == latest_versions[base_package] else 'minor', base_package in self.unlabeled_packages),
                     *([(f"{base_package}_variant", base_variant, 'patch', True)] if base_variant is not None else []),
                     *[
-                        (other_package, packages_version[other_package], 'global' if packages_version[base_package] == latest_versions[base_package] else 'minor', other_package in self.unlabeled_packages)
+                        (other_package, packages_version[other_package], 'global' if packages_version[other_package] == latest_versions[other_package] else 'minor', other_package in self.unlabeled_packages)
                         for other_package in other_packages
                     ],
                 ]
