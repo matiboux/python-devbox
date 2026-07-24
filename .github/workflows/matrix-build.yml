@@ -131,6 +131,13 @@ jobs:
 
       # Preparation steps
 
+      - name: Download scripts output
+        uses: actions/download-artifact@v8
+        with:
+          name: scripts-output
+          path: dist/
+        continue-on-error: true
+
       - name: Set PACKAGE_VERSIONS
         env:
           PACKAGE_VERSIONS: ${{ inputs.package_versions }}
@@ -190,6 +197,25 @@ jobs:
             )"
             package_version="$(echo "${package_entry}" | cut -d'=' -f2-)"
 
+            # Skip if package name is empty
+            if [ -z "${package_name}" ]; then
+              continue
+            fi
+
+            # Skip if versions retrieved from parent workflow
+            if [ -f ./dist/versions.yml ]; then
+              has_versions="$(
+                yq e '
+                  .detected_versions
+                  | has(env(package_name))
+                ' ./dist/versions.yml
+              )"
+              if [ "${has_versions}" == 'true' ]; then
+                echo "Detected versions for package '${package_name}' retrieved from parent workflow. Skipping detection."
+                continue
+              fi
+            fi
+
             echo "Detecting versions for package '${package_name}' with version '${package_version}'..."
             uv run python -m scripts.detect_versions "${package_name}" --version "${package_version}"
 
@@ -202,7 +228,23 @@ jobs:
           IMAGES_PREFIX: ${{ inputs.images_prefix }}
         run: |
           # python fetch_published_tags.py
-          uv run python -m scripts.fetch_published_tags "${IMAGES_PREFIX}"
+
+          # Skip if published tags retrieved from parent workflow
+          if [ -f ./dist/published_tags.yml ]; then
+            has_published_tags="$(
+              yq e '
+                .published_tags
+                | has(env(IMAGES_PREFIX))
+              ' ./dist/published_tags.yml
+            )"
+            if [ "${has_published_tags}" == 'true' ]; then
+              echo "Published tags for image prefix '${IMAGES_PREFIX}' retrieved from parent workflow. Skipping fetch."
+              exit 0
+            fi
+          fi
+
+          # Append with published tags from parent workflow (if any)
+          uv run python -m scripts.fetch_published_tags --append "${IMAGES_PREFIX}" || true
 
       - name: Compute build matrix
         env:
