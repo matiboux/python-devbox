@@ -198,9 +198,18 @@ jobs:
           IMAGES_PREFIXES: ${{ env.IMAGES_PREFIXES }}
         run: |
           # Fetch published tags for each specified image prefix
+
+          # Get datetime of last commit in the repository
+          LAST_COMMIT_DATETIME="$(git log -1 --format=%cI)"
+
           while IFS= read -r image_prefix; do
+
             echo "Fetching published tags for image prefix '${image_prefix}'..."
-            uv run python -m scripts.fetch_published_tags "${image_prefix}" || true
+            uv run python -m scripts.fetch_published_tags \
+              --ignore-tags-older-than "${LAST_COMMIT_DATETIME}" \
+              "${image_prefix}" \
+              || true
+
           done <<< "${IMAGES_PREFIXES}"
 
       - name: Compute build matrix
