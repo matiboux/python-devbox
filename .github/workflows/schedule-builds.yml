@@ -192,7 +192,7 @@ jobs:
           done <<< "${PACKAGES}"
 
       - name: Fetch all published tags
-        if: ${{ inputs.skip_published_tags == 'true' }}
+        if: ${{ inputs.skip_published_tags == true }}
         env:
           GITHUB_READ_TOKEN: ${{ secrets.GITHUB_READ_TOKEN }}
           IMAGES_PREFIXES: ${{ env.IMAGES_PREFIXES }}
