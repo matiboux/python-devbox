@@ -274,7 +274,9 @@ jobs:
           # Randomly sample a subset of 10 builds to run from the build matrix.
           BUILD_MATRIX="$(
             yq -o=json e '.build_matrix' ./dist/build_matrix.yml \
-            | jq -c 'shuffle | { include: .[0:10] }'
+            | jq -c '.[]' \
+            | shuf -n 10 \
+            | jq -rcs '{ include: . }'
           )"
 
           set_github_env 'BUILD_MATRIX' "${BUILD_MATRIX}" non-optional non-secret verbose
