@@ -22,12 +22,14 @@ class DetectVersions:
         constraints_path: str = 'constraints.yml',
         output_path: str = 'dist/versions.yml',
         version_filter: str | None = None,
+        scope: str | None = None
     ):
 
         self.package_name: str = package_name.strip().lower()
         self.constraints_path: str = constraints_path
         self.output_path: str = output_path
         self.version_filter: str | None = version_filter
+        self.scope: str | None = scope
 
         try:
             self.constraints: Dict[str, Any] = self._load_yaml(constraints_path)
@@ -552,8 +554,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         'package_name',
-        nargs='?',
-        default='',
         help=(
             'Package name (\'python\', \'poetry\', \'uv\', or \'nvm\'). '
             'Can also be specified via --package option.'
@@ -569,8 +569,15 @@ def parse_args() -> argparse.Namespace:
         '--version',
         default='',
         help=(
-            'Limit detection to a specific version (major, minor, or full). '
+            'Limit detection to a specific version (e.g., \'3\', \'3.14\', or \'3.13.14\'). '
             'Detects all versions if left empty.'
+        ),
+    )
+    parser.add_argument(
+        '--scope',
+        help=(
+            'Restrict detection to a specific scope (e.g., \'major\', \'minor\', or \'full\'). '
+            'Defaults depending on the package type: for example, Python defaults to \'minor\', while Node.js defaults to \'major\'.'
         ),
     )
     return parser.parse_args()
@@ -589,6 +596,7 @@ def main():
         detector = DetectVersions(
             package_name=package_name,
             version_filter=(args.version.strip() or None),
+            scope=(args.scope.strip() or None)
         )
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
