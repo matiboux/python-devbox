@@ -19,7 +19,7 @@ class FetchPublishedTags:
         image_name: str = 'python-devbox',
         github_read_token: str | None = None,
         ignore_tags_older_than: datetime | None = None,
-        output_path: str = 'dist/published_tags.yaml'
+        output_path: str = 'dist/published_tags.yml'
     ):
         self.image_name: str = image_name
         self.github_read_token: str | None = github_read_token or os.environ.get('GITHUB_READ_TOKEN') or os.environ.get('GITHUB_TOKEN')
@@ -73,20 +73,27 @@ class FetchPublishedTags:
         """Save published tags to output file."""
         print(f"Saving published tags to {self.output_path}...")
 
+        # Load existing data to preserve past fetched tags
+        try:
+            with open(self.output_path, 'r') as f:
+                existing = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            existing = {}
+
         if append:
-            # Load existing data to preserve past detected versions
-            try:
-                with open(self.output_path, 'r') as f:
-                    existing = yaml.safe_load(f) or {}
-            except FileNotFoundError:
-                existing = {}
-            published_tags = list(set(existing.get('published_tags', [])) | self.published_tags)
+            published_tags = list(
+                set(existing.get('published_tags', {}).get(self.image_name, []))
+                | self.published_tags
+            )
         else:
             published_tags = list(self.published_tags)
 
         data = {
             'last_updated': datetime.now(timezone.utc).isoformat() + 'Z',
-            'published_tags': published_tags,
+            'published_tags': {
+                **existing.get('published_tags', {}),
+                self.image_name: published_tags,
+            },
         }
 
         # Save to output file
@@ -109,7 +116,7 @@ def parse_args() -> argparse.Namespace:
         description='Fetch published tags from GitHub.',
     )
     parser.add_argument(
-        'image-name',
+        'image_name',
         help='Package name to fetch published tags for (defaults to \'python-devbox\').',
     )
     parser.add_argument(

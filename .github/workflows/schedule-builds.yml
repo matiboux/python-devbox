@@ -31,7 +31,196 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 
+# Set environment variables for the workflow
+env:
+  MATRIX_YAML: |
+    include:
+      # Devbox Python
+      - images_prefix: devbox-python
+        src_dirname: python
+        package_versions: python?
+        base_variants: '["", "slim", "alpine"]'
+      - images_prefix: devbox-python
+        src_dirname: python
+        package_versions: python?,poetry
+        base_variants: '["", "slim", "alpine"]'
+      - images_prefix: devbox-python
+        src_dirname: python
+        package_versions: python?,uv
+        base_variants: '["", "slim", "alpine"]'
+      # Devbox Python + Node
+      - images_prefix: devbox-python-node
+        src_dirname: python
+        package_versions: python?,node?,nvm
+        base_variants: '["", "slim"]'
+      - images_prefix: devbox-python-node
+        src_dirname: python
+        package_versions: python?,node?,nvm,poetry
+        base_variants: '["", "slim"]'
+      - images_prefix: devbox-python-node
+        src_dirname: python
+        package_versions: python?,node?,nvm,uv
+        base_variants: '["", "slim"]'
+
 jobs:
+
+  # Prepare job
+  prepare:
+    name: Cache package versions and published tags
+
+    # https://github.com/actions/runner-images/blob/main/images/ubuntu-slim/ubuntu-slim-Readme.md
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+
+    # Set GITHUB_TOKEN permissions for the job
+    permissions:
+      contents: read
+      packages: read
+
+    # Set environment variables for the job
+    env:
+      GITHUB_READ_TOKEN: ${{ secrets.GITHUB_READ_TOKEN }}
+
+    outputs:
+      matrix: ${{ steps.outputs.outputs.matrix }}
+
+    steps:
+
+      # Initialization steps
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Dependency steps
+
+      - name: Install jq
+        run: |
+          # apt-get install jq
+          sudo apt-get -q update
+          sudo apt-get -qy install --no-install-recommends jq
+
+      - name: Install yq
+        env:
+          YQ_VERSION: v4.53.3
+          YQ_ARCH: linux_amd64
+        run: |
+          # Install yq
+          sudo curl -SL \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_${YQ_ARCH}" \
+            -o /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      # Preparation steps
+
+      - name: Set strategy matrix
+        env:
+          MATRIX_YAML: ${{ env.MATRIX_YAML }}
+        run: |
+          # Set MATRIX_JSON environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Convert matrix strategy from YAML to JSON
+          MATRIX_JSON="$(
+            yq -o=json e '.' <<< "${MATRIX_YAML}"
+          )"
+
+          set_github_env 'MATRIX_JSON' "${MATRIX_JSON}" non-optional non-secret verbose
+
+      - name: Set packages list
+        env:
+          MATRIX_JSON: ${{ env.MATRIX_JSON }}
+        run: |
+          # Set PACKAGES environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Extract unique package names from the matrix JSON, ignoring unlabeled flags ('?')
+          PACKAGES="$(
+            jq -rc '
+              .include
+              | map(.package_versions // "")
+              | map(split(","))
+              | add
+              | map(sub("\\?$"; ""))
+              | unique
+              | .[]
+            ' <<< "$MATRIX_JSON"
+          )"
+
+          set_github_env 'PACKAGES' "${PACKAGES}" non-optional non-secret verbose
+
+      - name: Set images list
+        env:
+          MATRIX_JSON: ${{ env.MATRIX_JSON }}
+        run: |
+          # Set IMAGES_PREFIXES environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Extract unique image prefixes from the matrix JSON
+          IMAGES_PREFIXES="$(
+            jq -rc '
+              .include
+              | map(.images_prefix // "")
+              | unique
+              | .[]
+            ' <<< "$MATRIX_JSON"
+          )"
+
+          set_github_env 'IMAGES_PREFIXES' "${IMAGES_PREFIXES}" non-optional non-secret verbose
+
+      # Execution steps
+
+      - name: Install deps
+        run: |
+          uv sync --frozen
+
+      - name: Detect all package versions
+        env:
+          PACKAGES: ${{ env.PACKAGES }}
+        run: |
+          # Detect versions for each specified package
+          while IFS= read -r package; do
+            echo "Detecting versions for package '${package}'..."
+            uv run python -m scripts.detect_versions "${package}" || true
+          done <<< "${PACKAGES}"
+
+      - name: Fetch published tags for devbox-python
+        env:
+          GITHUB_READ_TOKEN: ${{ secrets.GITHUB_READ_TOKEN }}
+          IMAGES_PREFIXES: ${{ env.IMAGES_PREFIXES }}
+        run: |
+          # Fetch published tags for each specified image prefix
+          while IFS= read -r image_prefix; do
+            echo "Fetching published tags for image prefix '${image_prefix}'..."
+            uv run python -m scripts.fetch_published_tags "${image_prefix}" || true
+          done <<< "${IMAGES_PREFIXES}"
+
+      - name: Upload scripts output
+        uses: actions/upload-artifact@v7
+        with:
+          name: scripts-output
+          path: dist/
+          retention-days: 1
+
+      - name: Set job outputs
+        id: outputs
+        env:
+          MATRIX_JSON: ${{ env.MATRIX_JSON }}
+        run: |
+          # Set job output variables
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_output.sh
+
+          set_github_output 'matrix' "${MATRIX_JSON}" non-optional verbose
 
   # Run matrix-build for each packages combination
   matrix-build:
@@ -39,34 +228,11 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Devbox Python
-          - images_prefix: devbox-python
-            src_dirname: python
-            package_versions: python?
-            base_variants: '["", "slim", "alpine"]'
-          - images_prefix: devbox-python
-            src_dirname: python
-            package_versions: python?,poetry
-            base_variants: '["", "slim", "alpine"]'
-          - images_prefix: devbox-python
-            src_dirname: python
-            package_versions: python?,uv
-            base_variants: '["", "slim", "alpine"]'
-          # Devbox Python + Node
-          - images_prefix: devbox-python-node
-            src_dirname: python
-            package_versions: python?,node?,nvm
-            base_variants: '["", "slim"]'
-          - images_prefix: devbox-python-node
-            src_dirname: python
-            package_versions: python?,node?,nvm,poetry
-            base_variants: '["", "slim"]'
-          - images_prefix: devbox-python-node
-            src_dirname: python
-            package_versions: python?,node?,nvm,uv
-            base_variants: '["", "slim"]'
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+
+    # Job dependencies
+    needs:
+      - prepare
 
     # Set GITHUB_TOKEN permissions for the job
     permissions:
@@ -80,3 +246,68 @@ jobs:
       package_versions: ${{ matrix.package_versions }}
       skip_published_tags: ${{ inputs.skip_published_tags }}
     secrets: inherit
+
+  # Cleanup job
+  cleanup:
+    name: Cleanup
+
+    # https://github.com/actions/runner-images/blob/main/images/ubuntu-slim/ubuntu-slim-Readme.md
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+
+    # Job dependencies
+    needs:
+      - matrix-build
+
+    # Set GITHUB_TOKEN permissions for the job
+    permissions:
+      contents: read
+      packages: read
+
+    # Set environment variables for the job
+    env:
+      GITHUB_READ_TOKEN: ${{ secrets.GITHUB_READ_TOKEN }}
+
+    outputs:
+      matrix: ${{ steps.outputs.outputs.matrix }}
+
+    steps:
+
+      # Execution steps
+
+      - name: Delete scripts output artifact
+        uses: actions/github-script@v9
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          ARTIFACT_PATTERN: '^scripts-output$'
+        with:
+          script: |
+            const runId = process.env.GITHUB_RUN_ID;
+            const artifactPattern = new RegExp(process.env.ARTIFACT_PATTERN);
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            core.info(`Listing artifacts for run '${runId}' in '${owner}/${repo}'...`);
+            const res = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id: runId,
+            });
+            const artifacts = res.data?.artifacts || [];
+            if (artifacts.length <= 0) {
+              core.info('No artifacts found.');
+              return;
+            }
+            const requiredArtifacts = artifacts.filter(a => artifactPattern.test(a.name));
+            if (requiredArtifacts.length <= 0) {
+              core.info('Required artifact(s) not found.');
+              return;
+            }
+            for (const artifact of requiredArtifacts) {
+              core.info(`Deleting artifact '${artifact.name}' (${artifact.id})...`);
+              await github.rest.actions.deleteArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id,
+              });
+            }
+            core.info('Done.');

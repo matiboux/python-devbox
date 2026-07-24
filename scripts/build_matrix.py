@@ -20,7 +20,7 @@ class BuildMatrix:
         packages: List[str],
         base_variants: List[str] | Set[str] | None = None,
         versions_path: str = 'dist/versions.yml',
-        published_tags_path: str = 'dist/published_tags.yaml',
+        published_tags_path: str = 'dist/published_tags.yml',
         skip_published_tags: bool = True,
         output_path: str = 'dist/build_matrix.yml',
     ):
