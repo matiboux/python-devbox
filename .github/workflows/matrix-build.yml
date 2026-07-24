@@ -205,10 +205,10 @@ jobs:
             # Skip if versions retrieved from parent workflow
             if [ -f ./dist/versions.yml ]; then
               has_versions="$(
-                PACKAGE_NAME="${package_name}" \
+                package_name="${package_name}" \
                 yq e '
                   .detected_versions
-                  | has(env(PACKAGE_NAME))
+                  | has(env(package_name))
                 ' ./dist/versions.yml
               )"
               if [ "${has_versions}" == 'true' ]; then
@@ -233,7 +233,6 @@ jobs:
           # Skip if published tags retrieved from parent workflow
           if [ -f ./dist/published_tags.yml ]; then
             has_published_tags="$(
-              IMAGES_PREFIX="${IMAGES_PREFIX}" \
               yq e '
                 .published_tags
                 | has(env(IMAGES_PREFIX))
