@@ -33,34 +33,33 @@ concurrency:
 
 # Set environment variables for the workflow
 env:
-  MATRIX_YAML: |
-    include:
-      # Devbox Python
-      - images_prefix: devbox-python
-        src_dirname: python
-        package_versions: python?
-        base_variants: '["", "slim", "alpine"]'
-      - images_prefix: devbox-python
-        src_dirname: python
-        package_versions: python?,poetry
-        base_variants: '["", "slim", "alpine"]'
-      - images_prefix: devbox-python
-        src_dirname: python
-        package_versions: python?,uv
-        base_variants: '["", "slim", "alpine"]'
-      # Devbox Python + Node
-      - images_prefix: devbox-python-node
-        src_dirname: python
-        package_versions: python?,node?,nvm
-        base_variants: '["", "slim"]'
-      - images_prefix: devbox-python-node
-        src_dirname: python
-        package_versions: python?,node?,nvm,poetry
-        base_variants: '["", "slim"]'
-      - images_prefix: devbox-python-node
-        src_dirname: python
-        package_versions: python?,node?,nvm,uv
-        base_variants: '["", "slim"]'
+  IMAGES_LIST_YAML: |
+    # Devbox Python
+    - images_prefix: devbox-python
+      src_dirname: python
+      package_versions: python?
+      base_variants: '["", "slim", "alpine"]'
+    - images_prefix: devbox-python
+      src_dirname: python
+      package_versions: python?,poetry
+      base_variants: '["", "slim", "alpine"]'
+    - images_prefix: devbox-python
+      src_dirname: python
+      package_versions: python?,uv
+      base_variants: '["", "slim", "alpine"]'
+    # Devbox Python + Node
+    - images_prefix: devbox-python-node
+      src_dirname: python
+      package_versions: python?,node?,nvm
+      base_variants: '["", "slim"]'
+    - images_prefix: devbox-python-node
+      src_dirname: python
+      package_versions: python?,node?,nvm,poetry
+      base_variants: '["", "slim"]'
+    - images_prefix: devbox-python-node
+      src_dirname: python
+      package_versions: python?,node?,nvm,uv
+      base_variants: '["", "slim"]'
 
 jobs:
 
@@ -115,25 +114,25 @@ jobs:
 
       # Preparation steps
 
-      - name: Set strategy matrix
+      - name: Set images list
         env:
-          MATRIX_YAML: ${{ env.MATRIX_YAML }}
+          IMAGES_LIST_YAML: ${{ env.IMAGES_LIST_YAML }}
         run: |
-          # Set MATRIX_JSON environment variable
+          # Set IMAGES_LIST environment variable
 
           # Load helper scripts
           . ./.github/workflows/scripts/set_github_env.sh
 
           # Convert matrix strategy from YAML to JSON
-          MATRIX_JSON="$(
-            yq -o=json e '.' <<< "${MATRIX_YAML}"
+          IMAGES_LIST="$(
+            yq -o=json e '.' <<< "${IMAGES_LIST_YAML}"
           )"
 
-          set_github_env 'MATRIX_JSON' "${MATRIX_JSON}" non-optional non-secret verbose
+          set_github_env 'IMAGES_LIST' "${IMAGES_LIST}" non-optional non-secret verbose
 
       - name: Set packages list
         env:
-          MATRIX_JSON: ${{ env.MATRIX_JSON }}
+          IMAGES_LIST: ${{ env.IMAGES_LIST }}
         run: |
           # Set PACKAGES environment variable
 
@@ -150,14 +149,14 @@ jobs:
               | map(sub("\\?$"; ""))
               | unique
               | .[]
-            ' <<< "$MATRIX_JSON"
+            ' <<< "$IMAGES_LIST"
           )"
 
           set_github_env 'PACKAGES' "${PACKAGES}" non-optional non-secret verbose
 
       - name: Set images list
         env:
-          MATRIX_JSON: ${{ env.MATRIX_JSON }}
+          IMAGES_LIST: ${{ env.IMAGES_LIST }}
         run: |
           # Set IMAGES_PREFIXES environment variable
 
@@ -171,7 +170,7 @@ jobs:
               | map(.images_prefix // "")
               | unique
               | .[]
-            ' <<< "$MATRIX_JSON"
+            ' <<< "$IMAGES_LIST"
           )"
 
           set_github_env 'IMAGES_PREFIXES' "${IMAGES_PREFIXES}" non-optional non-secret verbose
@@ -192,7 +191,8 @@ jobs:
             uv run python -m scripts.detect_versions "${package}" || true
           done <<< "${PACKAGES}"
 
-      - name: Fetch published tags for devbox-python
+      - name: Fetch all published tags
+        if: ${{ inputs.skip_published_tags == 'true' }}
         env:
           GITHUB_READ_TOKEN: ${{ secrets.GITHUB_READ_TOKEN }}
           IMAGES_PREFIXES: ${{ env.IMAGES_PREFIXES }}
@@ -202,6 +202,82 @@ jobs:
             echo "Fetching published tags for image prefix '${image_prefix}'..."
             uv run python -m scripts.fetch_published_tags "${image_prefix}" || true
           done <<< "${IMAGES_PREFIXES}"
+
+      - name: Compute build matrix
+        env:
+          IMAGES_LIST: ${{ env.IMAGES_LIST }}
+        run: |
+          # Compute build matrix based on the strategy matrix
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Iterate over each combination in the strategy matrix
+          while read -r matrix_entry; do
+
+            # Extract package_versions and base_variants from the matrix entry
+            images_prefix="$(jq -r '.images_prefix // ""' <<< "${matrix_entry}")"
+            src_dirname="$(jq -r '.src_dirname // ""' <<< "${matrix_entry}")"
+            package_versions="$(jq -r '.package_versions // ""' <<< "${matrix_entry}")"
+            base_variants="$(jq -r '.base_variants // "[]"' <<< "${matrix_entry}")"
+
+            # Skip if package_versions is empty
+            if [ -z "${package_versions}" ]; then
+              continue
+            fi
+
+            # List specified package names in a comma-separated format
+            # Keep unlabeled flags ('?'), drop specified package versions
+            packages="$(
+              echo "${package_versions}" \
+              | sed 's/,/\n/g' \
+              | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+              | sed 's/=.*$//' \
+              | grep -v '^$' \
+              | tr '[:upper:]' '[:lower:]' \
+              | paste -sd ',' -
+            )"
+
+            # Skip if packages list is empty
+            if [ -z "${packages}" ]; then
+              continue
+            fi
+
+            common_metadata="$(
+              jq -n \
+                --arg images_prefix "${images_prefix}" \
+                --arg src_dirname "${src_dirname}" \
+                '{
+                  images_prefix: $images_prefix,
+                  src_dirname: $src_dirname
+                }'
+              )"
+
+            # Compute & append build matrix for specified packages
+            uv run python -m scripts.build_matrix --append \
+              --common-metadata "${common_metadata}" \
+              --base-variants "${base_variants}" \
+              "${packages}"
+
+          done <<< "$(jq -c '.include[]' <<< "${IMAGES_LIST}")"
+
+      - name: Randomly sample build matrix subset
+        run: |
+          # Randomly sample a subset of builds to run from the build matrix
+          # Set BUILD_MATRIX environment variable
+
+          # Load helper scripts
+          . ./.github/workflows/scripts/set_github_env.sh
+
+          # Transform list of build matrix entries
+          # to job matrix configuration in JSON format.
+          # Randomly sample a subset of 10 builds to run from the build matrix.
+          BUILD_MATRIX="$(
+            yq -o=json e '.build_matrix' ./dist/build_matrix.yml \
+            | jq -c 'shuffle | { include: .[0:10] }'
+          )"
+
+          set_github_env 'BUILD_MATRIX' "${BUILD_MATRIX}" non-optional non-secret verbose
 
       - name: Upload scripts output
         uses: actions/upload-artifact@v7
@@ -213,18 +289,18 @@ jobs:
       - name: Set job outputs
         id: outputs
         env:
-          MATRIX_JSON: ${{ env.MATRIX_JSON }}
+          BUILD_MATRIX: ${{ env.BUILD_MATRIX }}
         run: |
           # Set job output variables
 
           # Load helper scripts
           . ./.github/workflows/scripts/set_github_output.sh
 
-          set_github_output 'matrix' "${MATRIX_JSON}" non-optional verbose
+          set_github_output 'matrix' "${BUILD_MATRIX}" non-optional verbose
 
-  # Run matrix-build for each packages combination
-  matrix-build:
-    name: Build packages combinations
+  # Run build for each matrix entry
+  build-push:
+    name: Run build & push
 
     strategy:
       fail-fast: false
@@ -239,12 +315,12 @@ jobs:
       contents: read
       packages: write
 
-    uses: ./.github/workflows/matrix-build.yml
+    uses: ./.github/workflows/build-push.yml
     with:
       images_prefix: ${{ matrix.images_prefix }}
       src_dirname: ${{ matrix.src_dirname }}
-      package_versions: ${{ matrix.package_versions }}
-      skip_published_tags: ${{ inputs.skip_published_tags }}
+      image_tag_components: ${{ matrix.image_tag_components }}
+      build_args: ${{ matrix.build_args }}
     secrets: inherit
 
   # Cleanup job
